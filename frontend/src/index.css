@@ -84,21 +84,6 @@ select {
   font-weight: 700;
 }
 
-.badge {
-  padding: 4px 8px;
-  border-radius: 2px;
-  background: var(--badge);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.context {
-  color: #d3dae5;
-  font-size: 0.8125rem;
-}
-
 .topbar-actions {
   display: flex;
   gap: 8px;
@@ -375,7 +360,8 @@ h1:has(+ .subtitle) {
 
 .segments {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
   margin-bottom: 16px;
   border: 1px solid var(--navy);
 }
@@ -673,12 +659,6 @@ tr.selected td {
 .popup-title {
   margin-bottom: 4px;
   font-weight: 700;
-}
-
-@media (max-width: 1400px) {
-  .context {
-    display: none;
-  }
 }
 
 @media (max-width: 1000px) {

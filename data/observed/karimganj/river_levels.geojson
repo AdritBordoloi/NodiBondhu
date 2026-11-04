@@ -1,4 +1,18 @@
 {
   "type": "FeatureCollection",
-  "features": []
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [92.3681114, 24.8647214] },
+      "properties": {
+        "kind": "observed",
+        "name": "Kushiyara at Karimganj, reported level",
+        "source": "Assam State Disaster Management Authority alert, 22 July 2026",
+        "timestamp": "2026-07-22T13:00:00+05:30",
+        "quality": "A past reading reported during the July 2026 flood, not a live gauge. The alert says the river was above danger level. Marker shows Karimganj town, not the exact gauge position",
+        "level_m": 15.22,
+        "warning_level_m": 13.94
+      }
+    }
+  ]
 }

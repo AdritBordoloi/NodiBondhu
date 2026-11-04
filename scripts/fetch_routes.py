@@ -29,8 +29,8 @@ SOURCE = "Road route from the Bhuvan Shortest Path API, NRSC/ISRO; flood area fr
 QUALITY = (
     "Shortest route by distance, and the service cannot avoid floodwater, so this is not a "
     "recommended route. In the flood area does not mean the road is closed, because raised roads "
-    "can stay dry and the model ignores embankments and bridges. The flood model has not been "
-    "checked against a real flood. Date of the road data is not known"
+    "can stay dry and the model ignores embankments and bridges. The flood model only partly "
+    "matches one radar image of the July 2026 flood. Date of the road data is not known"
 )
 
 # Both ends must be in the same state, and each name must be a place in OpenStreetMap

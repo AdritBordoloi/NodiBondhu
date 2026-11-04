@@ -36,6 +36,8 @@ REFERENCE_DIR = ROOT / "data" / "reference"
 
 CELL_DEGREES = 1 / 1200  # 3 arc-seconds, about 90 m
 RISES_M = (1, 2, 3, 4, 5, 6)
+RIVER_LEVEL_PERCENTILE = 10
+RIVER_LEVEL_CELLS = 25  # about 2 km
 MIN_POLYGON_KM2 = 0.05
 SIMPLIFY_DEGREES = 0.0004
 COORDINATE_DEGREES = 0.00001  # about 1 m, far finer than the 90 m grid
@@ -44,8 +46,9 @@ DEM_SOURCE = "Copernicus DEM GLO-30"
 RIVER_SOURCE = "OpenStreetMap contributors"
 QUALITY = (
     "Screening estimate only. Terrain is a surface model with several metres of vertical error "
-    "on flat land. Ignores embankments, flow, timing and channel changes. Not checked against "
-    "a real flood yet"
+    "on flat land. Ignores embankments, flow, timing and channel changes. Compared with one "
+    "radar image of the July 2026 flood and only partly matches it, so higher scenarios are "
+    "likely too large"
 )
 BOUNDARY_NOTE = "Only land inside the district boundary is counted, not land in Bangladesh"
 
@@ -96,7 +99,10 @@ def build_grid(grid: str) -> None:
     print(f"{grid} {dem.shape}, river cells {river.sum()} ({river.mean():.1%})")
 
     nearest = ndimage.distance_transform_edt(~river, return_distances=False, return_indices=True)
-    height_above_river = np.clip(dem - dem[nearest[0], nearest[1]], 0, None)
+    # The terrain data reads banks and trees along a channel, so use a low value nearby as the river
+    river_only = np.where(river, dem, dem[nearest[0], nearest[1]])
+    river_level = ndimage.percentile_filter(river_only, RIVER_LEVEL_PERCENTILE, size=RIVER_LEVEL_CELLS)
+    height_above_river = np.clip(dem - river_level[nearest[0], nearest[1]], 0, None)
 
     lat_mid = math.radians((south + north) / 2)
     cell_km2 = (CELL_DEGREES * 111.32) ** 2 * math.cos(lat_mid)

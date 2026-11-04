@@ -30,4 +30,8 @@ Census villages go in `reference/<location>/villages.geojson`. `scripts/fetch_vi
 
 Land use estimates go in `reference/<location>/land_use.json`. `scripts/fetch_land_use.py <location>` creates the file using Bhuvan's land use API, and needs `BHUVAN_LULC_AOI_TOKEN` in `backend/.env`.
 
+The flood seen by radar goes in `observed/<location>/flood_radar.geojson`, and the comparison with the scenarios in `reference/<location>/model_check.json`. `scripts/fetch_observed_flood.py` creates both from Sentinel-1 images on Microsoft Planetary Computer, with no account needed. The radar images and dates are listed at the top of that script.
+
+River flow from GloFAS and past rain are fetched by the backend from Open-Meteo, with no key, and saved in `forecast/<location>/`. Each location's `river_point` in `reference/locations.json` picks the river cell to use.
+
 Road routes go in `reference/<location>/routes.geojson`. `scripts/fetch_routes.py [location]` creates the file using Bhuvan's shortest path API, and needs `BHUVAN_ROUTING_TOKEN` in `backend/.env` the first time. The routes to check are listed at the top of that script. Run it again after rebuilding flood scenarios.

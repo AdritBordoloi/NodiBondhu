@@ -55,11 +55,13 @@ const ALERT_PREVIEW_COUNT = 8
 const FLIGHT_DURATION_MS = 2400
 const FLOOD_FADE_MS = 900
 const FLOOD_OPACITY = 0.4
+const OBSERVED_OPACITY = 0.7
 
 const KINDS = ['observed', 'forecast', 'simulated'] as const
 type Kind = (typeof KINDS)[number]
 // Simulated flood areas get their own layer per location, so they can fade across
 const SHARED_MAP_KINDS = ['observed', 'forecast'] as const
+const TOGGLE_KINDS = ['observed', 'simulated'] as const
 
 const KIND_INFO: Record<Kind, { label: string; help: string; color: string }> = {
   observed: { label: 'Observed', help: 'Measured on the ground or by satellite', color: '#1565c0' },
@@ -123,12 +125,30 @@ type LandUse = {
     land_types: { name: string; flooded_km2: number; share: number }[]
   }[]
 }
+type ModelCheckResult = {
+  source?: string
+  quality?: string
+  event?: string
+  image_date?: string
+  compared_with?: string
+  observed_km2?: number
+  radar_coverage_share?: number
+  best_rise_m?: number
+  scenarios?: {
+    rise_m: number
+    model_km2: number
+    observed_inside_model_share: number
+    model_seen_by_radar_share: number
+    overlap_score: number
+  }[]
+}
 type LocationData = {
   layers: Layers
   settlements: Layer
   villages: Layer
   landUse: LandUse
   routes: Layer
+  modelCheck: ModelCheckResult
 }
 
 type ReportInfo = { generatedAt: string; mapImage: string | null; layersShown: string[] }
@@ -170,6 +190,7 @@ function formatField(key: string) {
   return key
     .replace(/_km2$/, ' (km²)')
     .replace(/_mm$/, ' (mm)')
+    .replace(/_m3s$/, ' (m³/s)')
     .replace(/_m$/, ' (m)')
     .replace(/_/g, ' ')
     .replace(/^./, (letter) => letter.toUpperCase())
@@ -462,6 +483,7 @@ function MapLegend({
   focus,
   villages,
   routes,
+  observedFlood,
   hasGauge,
   onVillageClick,
 }: {
@@ -470,6 +492,7 @@ function MapLegend({
   focus: string
   villages: Layer | null
   routes: Layer | null
+  observedFlood?: string
   hasGauge: boolean
   onVillageClick?: () => void
 }) {
@@ -506,6 +529,13 @@ function MapLegend({
       label: `Flood, +${rise} m`,
       detail: `Flood area at +${rise} m`,
       show: showSimulated,
+    },
+    {
+      key: 'radar',
+      symbol: <span className="legend-fill" style={{ background: KIND_INFO.observed.color }} />,
+      label: 'Flood seen by radar',
+      detail: observedFlood ?? 'Flood seen by radar',
+      show: kinds.includes('observed') && Boolean(observedFlood),
     },
     {
       key: 'settlement',
@@ -550,15 +580,15 @@ function MapLegend({
     {
       key: 'rain',
       symbol: dot(KIND_INFO.forecast.color, 10),
-      label: 'Rain forecast',
-      detail: 'Rain forecast point',
+      label: 'Rain and river forecast',
+      detail: 'Rain forecast point, and the river point used for flow',
       show: kinds.includes('forecast'),
     },
     {
       key: 'gauge',
       symbol: dot(KIND_INFO.observed.color, 10),
-      label: 'River gauge',
-      detail: 'River gauge reading',
+      label: 'River level reading',
+      detail: 'A reported river level, not a live gauge',
       show: kinds.includes('observed') && hasGauge,
     },
   ]
@@ -586,6 +616,64 @@ function MapLegend({
           </li>
         ))}
     </ul>
+  )
+}
+
+// Each layer can hold several kinds of feature, so find them by what they measure
+function findFeature(layer: Layer | null | undefined, field: string) {
+  return layer?.features.find((feature) => feature.properties[field] != null)?.properties
+}
+
+function ModelCheck({ check }: { check: ModelCheckResult | null }) {
+  const scenarios = check?.scenarios
+  if (!scenarios?.length) {
+    return <p className="empty">No radar check is available for this location yet.</p>
+  }
+  const best = scenarios.find((item) => item.rise_m === check?.best_rise_m)
+  const percent = (value: number) => `${Math.round(value * 100)}%`
+  return (
+    <>
+      <p className="report-text">
+        <strong>
+          Sentinel-1 radar on {check?.image_date} saw about {check?.observed_km2} km² of water that was not
+          there on {check?.compared_with}.
+        </strong>{' '}
+        The closest scenario is +{check?.best_rise_m} m
+        {best && `, with ${percent(best.overlap_score)} overlap`}. Event: {check?.event}.
+        {check?.radar_coverage_share != null &&
+          ` The radar images cover ${percent(check.radar_coverage_share)} of this area, so the table only compares that part.`}
+      </p>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Scenario</th>
+              <th scope="col">Model flood area</th>
+              <th scope="col">Radar flood inside the model</th>
+              <th scope="col">Model area radar saw as water</th>
+              <th scope="col">Overlap</th>
+            </tr>
+          </thead>
+          <tbody>
+            {scenarios.map((item) => (
+              <tr
+                key={item.rise_m}
+                className={item.rise_m === check?.best_rise_m ? 'selected' : undefined}
+              >
+                <td>+{item.rise_m} m</td>
+                <td>{item.model_km2} km²</td>
+                <td>{percent(item.observed_inside_model_share)}</td>
+                <td>{percent(item.model_seen_by_radar_share)}</td>
+                <td>{percent(item.overlap_score)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="note">
+        Compared with radar from {check?.compared_with}. {check?.quality}. Source: {check?.source}.
+      </p>
+    </>
   )
 }
 
@@ -738,6 +826,7 @@ function SituationReport({
   villages,
   landUse,
   routes,
+  modelCheck,
   layers,
   alert,
   onBack,
@@ -751,6 +840,7 @@ function SituationReport({
   villages: Layer | null
   landUse: LandUse | null
   routes: Layer | null
+  modelCheck: ModelCheckResult | null
   layers: Layers
   alert?: Alert
   onBack: () => void
@@ -765,13 +855,14 @@ function SituationReport({
   const levels = scenarios
     .map((scenario) => Number(scenario.properties.rise_m))
     .filter((level) => level <= rise)
-  const gauge = layers.observed?.features[0]?.properties
-  const rain = layers.forecast?.features[0]?.properties
+  const gauge = findFeature(layers.observed, 'level_m')
+  const rain = findFeature(layers.forecast, 'rain_next_24h_mm')
+  const flow = findFeature(layers.forecast, 'flow_peak_next_7d_m3s')
   const readings: { kind: Kind; measure: string; value: string; properties?: Properties }[] = [
     {
       kind: 'observed',
       measure: `River level near ${location.focus}`,
-      value: gauge?.level_m != null ? `${gauge.level_m} m` : 'Pending: no gauge connected yet',
+      value: gauge?.level_m != null ? `${gauge.level_m} m, a past reading` : 'Pending: no gauge connected yet',
       properties: gauge,
     },
     {
@@ -785,6 +876,21 @@ function SituationReport({
       measure: 'Rain, next 72 hours',
       value: rain?.rain_next_72h_mm != null ? `${rain.rain_next_72h_mm} mm` : 'Pending',
       properties: rain,
+    },
+    {
+      kind: 'forecast',
+      measure: 'Rain, past 7 days',
+      value: rain?.rain_past_7d_mm != null ? `${rain.rain_past_7d_mm} mm` : 'Pending',
+      properties: rain,
+    },
+    {
+      kind: 'forecast',
+      measure: 'River flow, highest in next 7 days',
+      value:
+        flow?.flow_peak_next_7d_m3s != null
+          ? `${formatCount(flow.flow_peak_next_7d_m3s)} m³/s (2026 monsoon peak: ${formatCount(flow.monsoon_peak_2026_m3s)} m³/s on ${flow.monsoon_peak_date})`
+          : 'Pending',
+      properties: flow,
     },
     {
       kind: 'simulated',
@@ -834,8 +940,8 @@ function SituationReport({
             }.`}
       </p>
       <p className="report-text">
-        This report gives no evacuation or response advice, because the model has not yet been
-        checked against a real flood.
+        This report gives no evacuation or response advice, because the model has only been compared
+        with limited satellite data, not field records.
       </p>
 
       <h2 className="section-title">Map</h2>
@@ -851,7 +957,11 @@ function SituationReport({
             focus={location.focus}
             villages={villages}
             routes={routes}
-            hasGauge={Boolean(layers.observed?.features.length)}
+            observedFlood={
+              layers.observed?.features.find((feature) => feature.geometry.type !== 'Point')?.properties
+                .name as string | undefined
+            }
+            hasGauge={gauge?.level_m != null}
           />
           <figcaption className="note">
             Map view when this report was generated. Layers shown:{' '}
@@ -937,6 +1047,9 @@ function SituationReport({
       <h2 className="section-title">Roads in the flood area</h2>
       <RoadCheck routes={routes} rise={rise} />
 
+      <h2 className="section-title">Model check against a real flood</h2>
+      <ModelCheck check={modelCheck} />
+
       <h2 className="section-title">All scenarios</h2>
       <ScenarioTable scenarios={scenarios} selected={selected} />
 
@@ -983,6 +1096,7 @@ export default function App() {
   const villages = locationData?.villages ?? null
   const landUse = locationData?.landUse ?? null
   const routes = locationData?.routes ?? null
+  const modelCheck = locationData?.modelCheck ?? null
   const villageSummary = summariseVillages(villages, rise)
   const focusName = location?.focus ?? 'Location'
 
@@ -1050,7 +1164,7 @@ export default function App() {
           type: 'fill',
           source: kind,
           filter: POLYGON_FILTER,
-          paint: { 'fill-color': color, 'fill-opacity': FLOOD_OPACITY },
+          paint: { 'fill-color': color, 'fill-opacity': OBSERVED_OPACITY },
         })
       }
       map.addSource(PILOT_AREA, { type: 'geojson', data: empty })
@@ -1261,7 +1375,7 @@ export default function App() {
     }
     const getLocationData = async (id: string): Promise<LocationData> => {
       const empty = (): Layer => ({ type: 'FeatureCollection', features: [] })
-      const [layerResults, settlementLayer, villageLayer, landUse, routeLayer] = await Promise.all([
+      const [layerResults, settlementLayer, villageLayer, landUse, routeLayer, modelCheck] = await Promise.all([
         Promise.all(
           KINDS.map(
             async (kind) =>
@@ -1273,6 +1387,9 @@ export default function App() {
         getJson<Layer>(`/api/locations/${id}/villages`).catch(empty),
         getJson<LandUse>(`/api/locations/${id}/land-use`).catch((): LandUse => ({})),
         getJson<Layer>(`/api/locations/${id}/routes`).catch(empty),
+        getJson<ModelCheckResult>(`/api/locations/${id}/model-check`).catch(
+          (): ModelCheckResult => ({}),
+        ),
       ])
       return {
         layers: Object.fromEntries(layerResults) as Layers,
@@ -1280,6 +1397,7 @@ export default function App() {
         villages: villageLayer,
         landUse,
         routes: routeLayer,
+        modelCheck,
       }
     }
     // Load every location up front, so switching never waits on the network
@@ -1324,7 +1442,7 @@ export default function App() {
             'fill-opacity-transition': { duration: FLOOD_FADE_MS, delay: 0 },
           },
         },
-        PILOT_AREA,
+        'observed-area',
       )
     }
   }, [locations, allData, mapReady])
@@ -1460,8 +1578,10 @@ export default function App() {
     .map((settlement) => String(settlement.properties.name))
     .sort()
   const pilotLevel = findFocusLevel(settlements, focusName)
-  const gauge = layers.observed?.features[0]?.properties
-  const rain = layers.forecast?.features[0]?.properties
+  const gauge = findFeature(layers.observed, 'level_m')
+  const observedFloodName = layers.observed?.features.find(
+    (feature) => feature.geometry.type !== 'Point',
+  )?.properties.name as string | undefined
   const pilotStatus = settlements ? focusStatus(pilotLevel, rise) : 'No data'
   const pilotDetail = pilotLevel != null ? `Model floods it from +${pilotLevel} m` : undefined
   const latestAlert = alerts[0]
@@ -1541,12 +1661,6 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <span className="badge">Prototype</span>
-        {location && (
-          <span className="context">
-            {location.name} · +{rise} m simulated scenario
-          </span>
-        )}
         {locations.length > 0 && tab !== 'report' && (
           <div className="topbar-actions">
             <select
@@ -1613,7 +1727,7 @@ export default function App() {
 
               <span className="field-label">Layers shown on map</span>
               <div className="segments">
-                {KINDS.map((kind) => (
+                {TOGGLE_KINDS.map((kind) => (
                   <button
                     key={kind}
                     type="button"
@@ -1640,14 +1754,17 @@ export default function App() {
                   value={selected ? formatArea(selected.properties.flooded_area_km2) : 'No data'}
                 />
                 <Readout
+                  wide
                   kind="observed"
                   label={`River level near ${focusName}`}
                   value={gauge?.level_m != null ? `${gauge.level_m} m` : 'Pending'}
-                />
-                <Readout
-                  kind="forecast"
-                  label="Rain, next 24 hours"
-                  value={rain?.rain_next_24h_mm != null ? `${rain.rain_next_24h_mm} mm` : 'Pending'}
+                  detail={
+                    gauge?.level_m != null
+                      ? `${gauge.name}, ${formatTime(gauge.timestamp)}. A past reading, not live${
+                          gauge.danger_level_m != null ? `. Danger level ${gauge.danger_level_m} m` : ''
+                        }${gauge.warning_level_m != null ? `. Warning level ${gauge.warning_level_m} m` : ''}`
+                      : 'No live gauge connected'
+                  }
                 />
                 <Readout
                   wide
@@ -1723,7 +1840,8 @@ export default function App() {
                 focus={focusName}
                 villages={villages}
                 routes={routes}
-                hasGauge={Boolean(layers.observed?.features.length)}
+                observedFlood={observedFloodName}
+                hasGauge={Boolean(gauge?.level_m != null)}
                 onVillageClick={openCensusData}
               />
               <div className="zoom-control">
@@ -1795,6 +1913,9 @@ export default function App() {
               <p className="note">
                 Counts only cover places mapped in OpenStreetMap, so the real number will be higher.
               </p>
+
+              <h2 className="section-title census-title">Model check against a real flood</h2>
+              <ModelCheck check={modelCheck} />
 
               <h2 className="section-title census-title">Census villages with flooded land</h2>
               <CensusVillages villages={villages} rise={rise} />
@@ -1883,6 +2004,7 @@ export default function App() {
             villages={villages}
             landUse={landUse}
             routes={routes}
+            modelCheck={modelCheck}
             layers={layers}
             alert={alerts.find((alert) => alert.location === locationId && alert.rise_m === rise)}
             onBack={() => setTab('scenario')}

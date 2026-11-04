@@ -1,0 +1,69 @@
+{
+  "name": "Flood scenarios checked against radar, 23 July 2026",
+  "kind": "observed",
+  "source": "Copernicus Sentinel-1 radar (RTC) from Microsoft Planetary Computer, mapped by NodiBondhu",
+  "timestamp": "2026-07-23T05:17+05:30",
+  "quality": "Satellite observation from one moment, which can miss the peak and water that had already drained. Radar cannot see water under trees, tea gardens or in built-up areas, so real flooding was larger. Thresholds are simple and have not been checked on the ground. Compared with the dry season, so this can include wet rice fields and seasonal wetlands as well as flood water",
+  "event": "July 2026 flood on the Kushiyara, above danger level at Karimganj on 22 July",
+  "image_date": "23 July 2026",
+  "compared_with": "10 February 2026",
+  "observed_km2": 42.5,
+  "radar_coverage_share": 1.0,
+  "best_rise_m": 2,
+  "settlements_near_flood": [
+    "Belala",
+    "Bhanga",
+    "Dattapur",
+    "Khola",
+    "Mokoi Bhanha",
+    "Nandapur",
+    "Sagarpar",
+    "Suterkandi",
+    "Thamua"
+  ],
+  "settlements_total": 35,
+  "scenarios": [
+    {
+      "rise_m": 1,
+      "model_km2": 70.0,
+      "observed_inside_model_share": 0.473,
+      "model_seen_by_radar_share": 0.287,
+      "overlap_score": 0.217
+    },
+    {
+      "rise_m": 2,
+      "model_km2": 106.9,
+      "observed_inside_model_share": 0.657,
+      "model_seen_by_radar_share": 0.261,
+      "overlap_score": 0.23
+    },
+    {
+      "rise_m": 3,
+      "model_km2": 154.8,
+      "observed_inside_model_share": 0.817,
+      "model_seen_by_radar_share": 0.224,
+      "overlap_score": 0.214
+    },
+    {
+      "rise_m": 4,
+      "model_km2": 190.2,
+      "observed_inside_model_share": 0.881,
+      "model_seen_by_radar_share": 0.197,
+      "overlap_score": 0.192
+    },
+    {
+      "rise_m": 5,
+      "model_km2": 221.4,
+      "observed_inside_model_share": 0.908,
+      "model_seen_by_radar_share": 0.174,
+      "overlap_score": 0.171
+    },
+    {
+      "rise_m": 6,
+      "model_km2": 246.5,
+      "observed_inside_model_share": 0.928,
+      "model_seen_by_radar_share": 0.16,
+      "overlap_score": 0.158
+    }
+  ]
+}

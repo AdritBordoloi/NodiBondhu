@@ -9,9 +9,9 @@ A first version of the website runs on Person 1's laptop: map, three data layers
 | Part | State |
 |---|---|
 | Rain forecast | Live from Open-Meteo |
-| Flood scenarios (+1 to +6 m) | Working, but **not yet checked against a real flood and probably too large**. The model floods the Simaluguri point only from +6 m, and the Karimganj town point from +1 m |
-| River level | **Missing**: needs a real CWC reading, for Simaluguri and for Karimganj |
-| Past flood from satellite | **Missing**: needed to check the model |
+| Flood scenarios (+1 to +6 m) | Working, recalibrated against July 2026 radar, but **only a partial match**, and +4 to +6 m still cover about 30-65% of the areas. Radar misses water under trees and in towns. The model floods the Simaluguri point only from +6 m, and the Karimganj town point from +1 m |
+| River level | **No live gauge.** Karimganj has one reported reading from 22 July 2026. Simaluguri and Sivasagar still need a real CWC reading |
+| Past flood from satellite | Added: Sentinel-1 radar for July 2026. See Model check on the website. Not checked on the ground |
 | Settlement counts | Too low: only 70 places are mapped in this area |
 | Alerts | Demo log only, nothing is sent |
 

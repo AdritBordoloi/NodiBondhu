@@ -32,8 +32,8 @@ RISES_M = (1, 2, 3, 4, 5, 6)
 SOURCE = "NodiBondhu estimate using Bhuvan LULC 250k land use, 2018-19, NRSC/ISRO"
 QUALITY = (
     "Estimate from 2 km squares, assuming land types are spread evenly within each square. Land "
-    "use is from 2018-19, and the flood areas come from a model not yet checked against a real "
-    "flood, so treat these as rough sizes only"
+    "use is from 2018-19, and the flood areas come from a model that only partly matches "
+    "one radar image of the July 2026 flood, so treat these as rough sizes only"
 )
 GROUPS = (
     ("Farmland", ("kharif", "rabi", "zaid", "double", "fallow", "shifting")),

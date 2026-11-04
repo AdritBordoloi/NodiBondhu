@@ -2,8 +2,8 @@
   "name": "Estimated land use in the Karimganj flood scenarios",
   "kind": "simulated",
   "source": "NodiBondhu estimate using Bhuvan LULC 250k land use, 2018-19, NRSC/ISRO",
-  "timestamp": "2026-11-04T19:41+05:30",
-  "quality": "Estimate from 2 km squares, assuming land types are spread evenly within each square. Land use is from 2018-19, and the flood areas come from a model not yet checked against a real flood, so treat these as rough sizes only",
+  "timestamp": "2026-11-04T21:48+05:30",
+  "quality": "Estimate from 2 km squares, assuming land types are spread evenly within each square. Land use is from 2018-19, and the flood areas come from a model that only partly matches one radar image of the July 2026 flood, so treat these as rough sizes only",
   "land_use_year": "2018-19",
   "squares_checked": 123,
   "squares_without_data": 0,
@@ -36,223 +36,223 @@
   "scenarios": [
     {
       "rise_m": 1,
-      "flooded_area_km2": 172.7,
-      "model_area_km2": 175.6,
+      "flooded_area_km2": 70.0,
+      "model_area_km2": 71.8,
       "land_types": [
         {
           "name": "Farmland",
-          "flooded_km2": 102.2,
-          "share": 0.592
+          "flooded_km2": 44.1,
+          "share": 0.631
         },
         {
           "name": "Plantation",
-          "flooded_km2": 31.0,
-          "share": 0.18
+          "flooded_km2": 11.5,
+          "share": 0.165
         },
         {
           "name": "Forest",
-          "flooded_km2": 20.5,
-          "share": 0.119
+          "flooded_km2": 6.4,
+          "share": 0.091
         },
         {
           "name": "Water bodies",
-          "flooded_km2": 12.9,
-          "share": 0.075
+          "flooded_km2": 6.3,
+          "share": 0.09
         },
         {
           "name": "Built-up",
-          "flooded_km2": 4.5,
-          "share": 0.026
+          "flooded_km2": 0.9,
+          "share": 0.012
         },
         {
           "name": "Wasteland",
-          "flooded_km2": 1.6,
-          "share": 0.009
-        }
-      ]
-    },
-    {
-      "rise_m": 2,
-      "flooded_area_km2": 211.4,
-      "model_area_km2": 213.6,
-      "land_types": [
-        {
-          "name": "Farmland",
-          "flooded_km2": 125.1,
-          "share": 0.592
-        },
-        {
-          "name": "Plantation",
-          "flooded_km2": 38.2,
-          "share": 0.181
-        },
-        {
-          "name": "Forest",
-          "flooded_km2": 25.1,
-          "share": 0.119
-        },
-        {
-          "name": "Water bodies",
-          "flooded_km2": 15.7,
-          "share": 0.074
-        },
-        {
-          "name": "Built-up",
-          "flooded_km2": 5.3,
-          "share": 0.025
-        },
-        {
-          "name": "Wasteland",
-          "flooded_km2": 2.1,
-          "share": 0.01
-        }
-      ]
-    },
-    {
-      "rise_m": 3,
-      "flooded_area_km2": 244.9,
-      "model_area_km2": 246.7,
-      "land_types": [
-        {
-          "name": "Farmland",
-          "flooded_km2": 144.4,
-          "share": 0.59
-        },
-        {
-          "name": "Plantation",
-          "flooded_km2": 44.4,
-          "share": 0.181
-        },
-        {
-          "name": "Forest",
-          "flooded_km2": 29.6,
-          "share": 0.121
-        },
-        {
-          "name": "Water bodies",
-          "flooded_km2": 18.1,
-          "share": 0.074
-        },
-        {
-          "name": "Built-up",
-          "flooded_km2": 6.0,
-          "share": 0.025
-        },
-        {
-          "name": "Wasteland",
-          "flooded_km2": 2.5,
-          "share": 0.01
-        }
-      ]
-    },
-    {
-      "rise_m": 4,
-      "flooded_area_km2": 267.4,
-      "model_area_km2": 268.5,
-      "land_types": [
-        {
-          "name": "Farmland",
-          "flooded_km2": 156.2,
-          "share": 0.584
-        },
-        {
-          "name": "Plantation",
-          "flooded_km2": 49.1,
-          "share": 0.184
-        },
-        {
-          "name": "Forest",
-          "flooded_km2": 33.3,
-          "share": 0.124
-        },
-        {
-          "name": "Water bodies",
-          "flooded_km2": 19.6,
-          "share": 0.073
-        },
-        {
-          "name": "Built-up",
-          "flooded_km2": 6.5,
-          "share": 0.024
-        },
-        {
-          "name": "Wasteland",
-          "flooded_km2": 2.8,
-          "share": 0.01
-        }
-      ]
-    },
-    {
-      "rise_m": 5,
-      "flooded_area_km2": 285.3,
-      "model_area_km2": 286.2,
-      "land_types": [
-        {
-          "name": "Farmland",
-          "flooded_km2": 164.8,
-          "share": 0.578
-        },
-        {
-          "name": "Plantation",
-          "flooded_km2": 53.4,
-          "share": 0.187
-        },
-        {
-          "name": "Forest",
-          "flooded_km2": 36.4,
-          "share": 0.128
-        },
-        {
-          "name": "Water bodies",
-          "flooded_km2": 20.8,
-          "share": 0.073
-        },
-        {
-          "name": "Built-up",
-          "flooded_km2": 6.9,
-          "share": 0.024
-        },
-        {
-          "name": "Wasteland",
-          "flooded_km2": 3.1,
+          "flooded_km2": 0.8,
           "share": 0.011
         }
       ]
     },
     {
-      "rise_m": 6,
-      "flooded_area_km2": 302.3,
-      "model_area_km2": 302.7,
+      "rise_m": 2,
+      "flooded_area_km2": 106.9,
+      "model_area_km2": 109.1,
       "land_types": [
         {
           "name": "Farmland",
-          "flooded_km2": 172.8,
-          "share": 0.571
+          "flooded_km2": 67.4,
+          "share": 0.631
         },
         {
           "name": "Plantation",
-          "flooded_km2": 57.5,
-          "share": 0.19
+          "flooded_km2": 17.9,
+          "share": 0.168
         },
         {
           "name": "Forest",
-          "flooded_km2": 39.7,
-          "share": 0.131
+          "flooded_km2": 10.0,
+          "share": 0.094
         },
         {
           "name": "Water bodies",
-          "flooded_km2": 21.7,
-          "share": 0.072
+          "flooded_km2": 9.1,
+          "share": 0.085
         },
         {
           "name": "Built-up",
-          "flooded_km2": 7.1,
-          "share": 0.024
+          "flooded_km2": 1.3,
+          "share": 0.012
         },
         {
           "name": "Wasteland",
-          "flooded_km2": 3.5,
+          "flooded_km2": 1.2,
+          "share": 0.011
+        }
+      ]
+    },
+    {
+      "rise_m": 3,
+      "flooded_area_km2": 154.7,
+      "model_area_km2": 156.7,
+      "land_types": [
+        {
+          "name": "Farmland",
+          "flooded_km2": 98.5,
+          "share": 0.637
+        },
+        {
+          "name": "Plantation",
+          "flooded_km2": 25.6,
+          "share": 0.165
+        },
+        {
+          "name": "Forest",
+          "flooded_km2": 14.7,
+          "share": 0.095
+        },
+        {
+          "name": "Water bodies",
+          "flooded_km2": 12.5,
+          "share": 0.081
+        },
+        {
+          "name": "Built-up",
+          "flooded_km2": 1.9,
           "share": 0.012
+        },
+        {
+          "name": "Wasteland",
+          "flooded_km2": 1.6,
+          "share": 0.011
+        }
+      ]
+    },
+    {
+      "rise_m": 4,
+      "flooded_area_km2": 190.1,
+      "model_area_km2": 192.0,
+      "land_types": [
+        {
+          "name": "Farmland",
+          "flooded_km2": 120.3,
+          "share": 0.633
+        },
+        {
+          "name": "Plantation",
+          "flooded_km2": 31.8,
+          "share": 0.167
+        },
+        {
+          "name": "Forest",
+          "flooded_km2": 18.9,
+          "share": 0.099
+        },
+        {
+          "name": "Water bodies",
+          "flooded_km2": 14.5,
+          "share": 0.076
+        },
+        {
+          "name": "Built-up",
+          "flooded_km2": 2.5,
+          "share": 0.013
+        },
+        {
+          "name": "Wasteland",
+          "flooded_km2": 2.0,
+          "share": 0.011
+        }
+      ]
+    },
+    {
+      "rise_m": 5,
+      "flooded_area_km2": 221.4,
+      "model_area_km2": 222.8,
+      "land_types": [
+        {
+          "name": "Farmland",
+          "flooded_km2": 137.3,
+          "share": 0.62
+        },
+        {
+          "name": "Plantation",
+          "flooded_km2": 38.3,
+          "share": 0.173
+        },
+        {
+          "name": "Forest",
+          "flooded_km2": 24.0,
+          "share": 0.108
+        },
+        {
+          "name": "Water bodies",
+          "flooded_km2": 16.4,
+          "share": 0.074
+        },
+        {
+          "name": "Built-up",
+          "flooded_km2": 3.1,
+          "share": 0.014
+        },
+        {
+          "name": "Wasteland",
+          "flooded_km2": 2.3,
+          "share": 0.01
+        }
+      ]
+    },
+    {
+      "rise_m": 6,
+      "flooded_area_km2": 246.4,
+      "model_area_km2": 247.7,
+      "land_types": [
+        {
+          "name": "Farmland",
+          "flooded_km2": 148.9,
+          "share": 0.604
+        },
+        {
+          "name": "Plantation",
+          "flooded_km2": 44.7,
+          "share": 0.181
+        },
+        {
+          "name": "Forest",
+          "flooded_km2": 28.4,
+          "share": 0.115
+        },
+        {
+          "name": "Water bodies",
+          "flooded_km2": 18.0,
+          "share": 0.073
+        },
+        {
+          "name": "Built-up",
+          "flooded_km2": 3.7,
+          "share": 0.015
+        },
+        {
+          "name": "Wasteland",
+          "flooded_km2": 2.8,
+          "share": 0.011
         }
       ]
     }

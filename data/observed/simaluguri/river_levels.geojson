@@ -1,4 +1,25 @@
 {
   "type": "FeatureCollection",
-  "features": []
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          94.6394226,
+          26.9834936
+        ]
+      },
+      "properties": {
+        "kind": "observed",
+        "name": "Dikhow at Sivasagar, reported level (about 14 km from Simaluguri)",
+        "source": "Central Water Commission reading, reported by Morung Express, 24 July 2026",
+        "timestamp": "2026-07-24T09:00:00+05:30",
+        "quality": "A past reading reported during the July 2026 flood, not a live gauge. Marker shows Sivasagar town, not the exact gauge position. This gauge is in Sivasagar town, so the level at Simaluguri will differ",
+        "level_m": 94.26,
+        "danger_level_m": 92.4,
+        "highest_recorded_before_m": 94.35
+      }
+    }
+  ]
 }

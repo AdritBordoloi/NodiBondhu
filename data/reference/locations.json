@@ -7,6 +7,7 @@
     "census_district": "Sibsagar",
     "grid": "upper_assam",
     "coordinates": [94.7556049, 26.9202285],
+    "river_point": [94.725006, 26.875],
     "bbox": [94.65, 26.82, 94.86, 27.02]
   },
   {
@@ -17,6 +18,8 @@
     "census_district": "Sibsagar",
     "grid": "upper_assam",
     "coordinates": [94.6394226, 26.9834936],
+    "river_point": [94.625, 27.025002],
+    "village_step_degrees": 0.02,
     "bbox": [94.4, 26.65, 95.0, 27.2]
   },
   {
@@ -27,6 +30,7 @@
     "census_district": "Karimganj",
     "grid": "barak_valley",
     "coordinates": [92.3681114, 24.8647214],
+    "river_point": [92.375, 24.875],
     "bbox": [92.23, 24.7, 92.5, 24.92]
   }
 ]

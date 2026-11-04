@@ -45,13 +45,13 @@ QUALITY = (
 )
 
 
-def grid_points(bbox: list[float]) -> list[tuple[float, float]]:
+def grid_points(bbox: list[float], step: float) -> list[tuple[float, float]]:
     west, south, east, north = bbox
-    columns = math.floor((east - west) / STEP_DEGREES)
-    rows = math.floor((north - south) / STEP_DEGREES)
-    half = STEP_DEGREES / 2
+    columns = math.floor((east - west) / step)
+    rows = math.floor((north - south) / step)
+    half = step / 2
     return [
-        (round(west + half + column * STEP_DEGREES, 5), round(south + half + row * STEP_DEGREES, 5))
+        (round(west + half + column * step, 5), round(south + half + row * step, 5))
         for row in range(rows)
         for column in range(columns)
     ]
@@ -322,7 +322,7 @@ def main() -> None:
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     raw_path = RAW_DIR / f"bhuvan_villages_{location_id}.json"
 
-    points = grid_points(location["bbox"])
+    points = grid_points(location["bbox"], location.get("village_step_degrees", STEP_DEGREES))
     boundary = load_boundary(location_id)
     if boundary is not None:
         points = [point for point in points if boundary.contains(Point(point))]

@@ -22,6 +22,13 @@ IST = timezone(timedelta(hours=5, minutes=30))
 RAIN_MAX_AGE = timedelta(minutes=30)
 RAIN_TIMEOUT_SECONDS = 8
 RAIN_SOURCE = "Weather data by Open-Meteo.com"
+FLOW_SOURCE = "GloFAS river discharge (Copernicus Emergency Management Service) via Open-Meteo.com"
+FLOW_QUALITY = (
+    "Global model at about 5 km, not a gauge reading. Its river cell may not match the local "
+    "channel exactly, so use it to compare with the 2026 monsoon peak, not as a measured flow"
+)
+FLOW_REFERENCE_START = "2026-05-01"
+FLOW_REFERENCE_END = "2026-10-31"
 
 app = FastAPI(title="NodiBondhu API")
 app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -76,6 +83,7 @@ async def fetch_rain_forecast(location: dict) -> dict:
                 "latitude": lat,
                 "longitude": lon,
                 "hourly": "precipitation",
+                "past_days": 7,
                 "forecast_days": 4,
                 "timezone": "Asia/Kolkata",
             },
@@ -84,11 +92,13 @@ async def fetch_rain_forecast(location: dict) -> dict:
     hourly = response.json()["hourly"]
 
     now = datetime.now(IST).replace(tzinfo=None)
-    upcoming = [
+    readings = [
         (datetime.fromisoformat(time), rain)
         for time, rain in zip(hourly["time"], hourly["precipitation"])
-        if datetime.fromisoformat(time) >= now and rain is not None
+        if rain is not None
     ]
+    upcoming = [(time, rain) for time, rain in readings if time >= now]
+    past_week = round(sum(rain for time, rain in readings if time < now), 1)
 
     def total(hours: int) -> float:
         cutoff = now + timedelta(hours=hours)
@@ -108,6 +118,61 @@ async def fetch_rain_forecast(location: dict) -> dict:
                     "quality": "Global model forecast, not checked against local gauges",
                     "rain_next_24h_mm": total(24),
                     "rain_next_72h_mm": total(72),
+                    "rain_past_7d_mm": past_week,
+                },
+            }
+        ],
+    }
+
+
+async def fetch_river_flow(location: dict) -> dict:
+    """River flow on the main river near a location, with the 2026 monsoon peak to compare."""
+    lon, lat = location["river_point"]
+    url = "https://flood-api.open-meteo.com/v1/flood"
+    async with httpx.AsyncClient(timeout=RAIN_TIMEOUT_SECONDS) as client:
+        forecast = await client.get(
+            url,
+            params={"latitude": lat, "longitude": lon, "daily": "river_discharge", "forecast_days": 7},
+        )
+        reference = await client.get(
+            url,
+            params={
+                "latitude": lat,
+                "longitude": lon,
+                "daily": "river_discharge",
+                "start_date": FLOW_REFERENCE_START,
+                "end_date": FLOW_REFERENCE_END,
+            },
+        )
+    forecast.raise_for_status()
+    reference.raise_for_status()
+
+    def peak(daily: dict) -> tuple[str, float]:
+        values = [
+            (day, value) for day, value in zip(daily["time"], daily["river_discharge"]) if value is not None
+        ]
+        return max(values, key=lambda item: item[1])
+
+    daily = forecast.json()["daily"]
+    peak_day, peak_flow = peak(daily)
+    flood_day, flood_flow = peak(reference.json()["daily"])
+    return {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [lon, lat]},
+                "properties": {
+                    "kind": "forecast",
+                    "name": f"River flow forecast near {location['focus']}",
+                    "source": FLOW_SOURCE,
+                    "timestamp": datetime.now(IST).isoformat(timespec="minutes"),
+                    "quality": FLOW_QUALITY,
+                    "flow_today_m3s": round(daily["river_discharge"][0], 1),
+                    "flow_peak_next_7d_m3s": round(peak_flow, 1),
+                    "flow_peak_date": peak_day,
+                    "monsoon_peak_2026_m3s": round(flood_flow, 1),
+                    "monsoon_peak_date": flood_day,
                 },
             }
         ],
@@ -116,6 +181,10 @@ async def fetch_rain_forecast(location: dict) -> dict:
 
 def rain_file(location: dict) -> Path:
     return DATA_DIR / "forecast" / location["id"] / "rain.geojson"
+
+
+def flow_file(location: dict) -> Path:
+    return DATA_DIR / "forecast" / location["id"] / "river_flow.geojson"
 
 
 def rain_is_fresh(location: dict) -> bool:
@@ -129,15 +198,19 @@ def rain_is_fresh(location: dict) -> bool:
 
 
 async def refresh_rain_forecast(location: dict) -> None:
-    """Keep a saved copy so the demo still works if the service or internet fails."""
+    """Keep saved copies so the demo still works if a service or the internet fails."""
     if location["id"] in rain_refreshing:
         return
     rain_refreshing.add(location["id"])
     try:
-        layer = await fetch_rain_forecast(location)
-        write_json(rain_file(location), layer)
-    except (httpx.HTTPError, KeyError, ValueError, OSError):
-        return
+        for fetch, path in (
+            (fetch_rain_forecast, rain_file(location)),
+            (fetch_river_flow, flow_file(location)),
+        ):
+            try:
+                write_json(path, await fetch(location))
+            except (httpx.HTTPError, KeyError, ValueError, OSError):
+                continue
     finally:
         rain_refreshing.discard(location["id"])
 
@@ -160,7 +233,7 @@ async def get_layer(
     if kind not in KINDS:
         raise HTTPException(status_code=404, detail=f"Unknown layer: {kind}")
     if kind == "forecast":
-        if not rain_file(location).exists():
+        if not rain_file(location).exists() or not flow_file(location).exists():
             await refresh_rain_forecast(location)
         elif not rain_is_fresh(location):
             # Answer now with the saved forecast and its time, then update it for the next visit
@@ -204,6 +277,14 @@ def get_land_use(location_id: str) -> dict:
     """Estimated land use per flood scenario, or an empty answer if not built yet."""
     get_location(location_id)
     path = DATA_DIR / "reference" / location_id / "land_use.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+
+@app.get("/api/locations/{location_id}/model-check")
+def get_model_check(location_id: str) -> dict:
+    """How the flood scenarios compare with a flood seen by radar, or empty if not built yet."""
+    get_location(location_id)
+    path = DATA_DIR / "reference" / location_id / "model_check.json"
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
 
 
