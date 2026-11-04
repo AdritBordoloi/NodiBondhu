@@ -1,4 +1,4 @@
-﻿# NodiBondhu
+# NodiBondhu
 
 Flood digital twin prototype for NESFIC-D-18, covering Simaluguri, Sivasagar and Karimganj (Sribhumi district) in Assam. It keeps observed, forecast and simulated data separate, and shows where each figure comes from.
 
@@ -6,7 +6,7 @@ Flood digital twin prototype for NESFIC-D-18, covering Simaluguri, Sivasagar and
 
 ## Features
 
-- Flood scenarios from +1 to +6 m river rise on Bhuvan satellite imagery, with place names and a 1Ã— to 4Ã— zoom
+- Flood scenarios from +1 to +6 m river rise on Bhuvan satellite imagery, with place names and a 1x to 4x zoom
 - Flood seen by Sentinel-1 radar in July 2026, and a check of the model against it
 - Reported river levels, which are past readings and not live gauges
 - Rain forecast and GloFAS river flow from Open-Meteo, in Data Sources and the report
