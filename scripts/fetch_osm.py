@@ -1,15 +1,29 @@
-"""Download rivers and settlements for the pilot area from OpenStreetMap."""
+"""Download rivers and settlements for the model grids from OpenStreetMap.
+
+Run: python scripts/fetch_osm.py [grid]
+With no grid name, it downloads every grid.
+"""
 import json
+import sys
 from pathlib import Path
 
 import httpx
 
-from pilot_area import EAST, NORTH, SOUTH, WEST
+from pilot_area import GRIDS
 
 RAW_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
 
-QUERY = f"""
-[out:json][timeout:120][bbox:{SOUTH},{WEST},{NORTH},{EAST}];
+SERVERS = (
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+)
+
+
+def query_for(grid: str) -> str:
+    west, south, east, north = GRIDS[grid]
+    return f"""
+[out:json][timeout:120][bbox:{south},{west},{north},{east}];
 (
   way["waterway"="river"];
   way["waterway"="riverbank"];
@@ -21,20 +35,13 @@ out geom;
 """
 
 
-SERVERS = (
-    "https://overpass-api.de/api/interpreter",
-    "https://overpass.kumi.systems/api/interpreter",
-    "https://overpass.private.coffee/api/interpreter",
-)
-
-
-def download() -> list[dict]:
+def download(grid: str) -> list[dict]:
     last_error: Exception | None = None
     for server in SERVERS:
         try:
             response = httpx.post(
                 server,
-                data={"data": QUERY},
+                data={"data": query_for(grid)},
                 headers={"User-Agent": "NodiBondhu-hackathon-prototype"},
                 timeout=180,
             )
@@ -51,13 +58,14 @@ def download() -> list[dict]:
 
 
 def main() -> None:
-    elements = download()
     RAW_DIR.mkdir(parents=True, exist_ok=True)
-    (RAW_DIR / "osm.json").write_text(json.dumps(elements), encoding="utf-8")
-    counts: dict[str, int] = {}
-    for element in elements:
-        counts[element["type"]] = counts.get(element["type"], 0) + 1
-    print(counts)
+    for grid in sys.argv[1:] or GRIDS:
+        elements = download(grid)
+        (RAW_DIR / f"osm_{grid}.json").write_text(json.dumps(elements), encoding="utf-8")
+        counts: dict[str, int] = {}
+        for element in elements:
+            counts[element["type"]] = counts.get(element["type"], 0) + 1
+        print(grid, counts)
 
 
 if __name__ == "__main__":

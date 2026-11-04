@@ -1,6 +1,6 @@
 # NodiBondhu: Team Instructions
 
-Challenge: NESFIC-D-18, flood digital twin. Pilot: **Simaluguri, Sivasagar district, Assam**. Deadline: **12:00 midnight tonight**.
+Challenge: NESFIC-D-18, flood digital twin. Pilot: **Simaluguri, Sivasagar district, Assam**, with Sivasagar and **Karimganj (Sribhumi district)** as further study regions. Deadline: **12:00 midnight tonight**.
 
 ## Where things stand
 
@@ -9,8 +9,8 @@ A first version of the website runs on Person 1's laptop: map, three data layers
 | Part | State |
 |---|---|
 | Rain forecast | Live from Open-Meteo |
-| Flood scenarios (+1 to +6 m) | Working, but **not yet checked against a real flood and probably too large**. The model floods the Simaluguri point only from +6 m |
-| River level | **Missing**: needs a real CWC reading |
+| Flood scenarios (+1 to +6 m) | Working, but **not yet checked against a real flood and probably too large**. The model floods the Simaluguri point only from +6 m, and the Karimganj town point from +1 m |
+| River level | **Missing**: needs a real CWC reading, for Simaluguri and for Karimganj |
 | Past flood from satellite | **Missing**: needed to check the model |
 | Settlement counts | Too low: only 70 places are mapped in this area |
 | Alerts | Demo log only, nothing is sent |

@@ -27,8 +27,11 @@ const SATELLITE_DETAIL_MIN_ZOOM = 12
 const SATELLITE_DETAIL_MAX_ZOOM = 15
 const PILOT_AREA = 'pilot-area'
 const SETTLEMENTS = 'settlements'
+const ROUTES = 'routes'
+const ROUTES_CASING = 'routes-casing'
+const ROUTES_FLOODED = 'routes-flooded'
+const ROUTE_LINE_FILTER: ExpressionSpecification = ['==', ['get', 'segment'], 'route']
 const ALERT_PREVIEW_COUNT = 8
-const MAX_RISE_LEVELS = 6
 const FLIGHT_DURATION_MS = 2400
 const FLOOD_FADE_MS = 900
 const FLOOD_OPACITY = 0.4
@@ -80,7 +83,25 @@ type Location = {
   coordinates: [number, number]
   bbox: [number, number, number, number]
 }
-type LocationData = { layers: Layers; settlements: Layer; villages: Layer }
+type LandUse = {
+  source?: string
+  quality?: string
+  land_use_year?: string
+  squares_checked?: number
+  squares_without_data?: number
+  scenarios?: {
+    rise_m: number
+    flooded_area_km2: number
+    land_types: { name: string; flooded_km2: number; share: number }[]
+  }[]
+}
+type LocationData = {
+  layers: Layers
+  settlements: Layer
+  villages: Layer
+  landUse: LandUse
+  routes: Layer
+}
 
 type ReportInfo = { generatedAt: string; mapImage: string | null; layersShown: string[] }
 
@@ -234,6 +255,93 @@ function CensusVillages({
   )
 }
 
+function FloodedLandUse({ landUse, rise }: { landUse: LandUse | null; rise: number }) {
+  const scenario = landUse?.scenarios?.find((item) => item.rise_m === rise)
+  if (!scenario) {
+    return <p className="empty">Land use estimates are not available for this location yet.</p>
+  }
+  const missing = landUse?.squares_without_data ?? 0
+  return (
+    <>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Land type</th>
+              <th scope="col">Estimated flooded area</th>
+              <th scope="col">Share</th>
+            </tr>
+          </thead>
+          <tbody>
+            {scenario.land_types.map((item) => (
+              <tr key={item.name}>
+                <td>{item.name}</td>
+                <td>about {Math.round(item.flooded_km2).toLocaleString('en-IN')} km²</td>
+                <td>{Math.round(item.share * 100)}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="note">
+        {landUse?.quality}.{' '}
+        {missing > 0 && `${missing} of ${landUse?.squares_checked} squares had no land use data. `}
+        Source: {landUse?.source}.
+      </p>
+    </>
+  )
+}
+
+function RoadCheck({ routes, rise }: { routes: Layer | null; rise: number }) {
+  const list = (routes?.features ?? []).filter((route) => route.properties.segment === 'route')
+  if (list.length === 0) {
+    return <p className="empty">Road routes are not available for this location yet.</p>
+  }
+  const floodedKm = (route: Feature) => Number(route.properties[`flooded_km_${rise}`] ?? 0)
+  const partlyMapped = list.some(
+    (route) => Number(route.properties.mapped_km) < Number(route.properties.length_km),
+  )
+  return (
+    <>
+      <p className="report-text">
+        <strong>
+          {list.filter((route) => floodedKm(route) > 0).length} of {list.length} main routes pass
+          through the flood area at +{rise} m.
+        </strong>{' '}
+        On the map, routes are white and the stretches in the flood area are red. Routes were only
+        checked where the flood map covers them, so white outside that area does not mean dry.
+      </p>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Route</th>
+              <th scope="col">Length</th>
+              <th scope="col">Flood map covers</th>
+              <th scope="col">In flood area at +{rise} m</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((route) => (
+              <tr key={String(route.properties.name)}>
+                <td>{route.properties.name}</td>
+                <td>about {route.properties.length_km} km</td>
+                <td>{route.properties.mapped_km} km</td>
+                <td>about {floodedKm(route)} km</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="note">
+        {partlyMapped &&
+          'Where the flood map covers only part of a route, the rest was not checked, so the real distance could be higher. '}
+        {list[0].properties.quality}. Source: {list[0].properties.source}.
+      </p>
+    </>
+  )
+}
+
 function findFocusLevel(settlements: Layer | null, focus: string) {
   const place = settlements?.features.find((feature) => feature.properties.name === focus)
   return place ? (place.properties.first_flooded_at_m as number | null) : undefined
@@ -259,7 +367,7 @@ function LocationSwitch({
     '--index': locations.findIndex((location) => location.id === selectedId),
   } as CSSProperties
   return (
-    <div className="location-switch" role="group" aria-label="Location" style={style}>
+    <div className="location-switch" role="group" aria-label="Study region" style={style}>
       <span className="location-indicator" aria-hidden="true" />
       {locations.map((location) => (
         <button
@@ -327,16 +435,6 @@ function Readout({
   )
 }
 
-function RiseMeter({ level }: { level: number }) {
-  return (
-    <span className="meter" aria-hidden="true">
-      {Array.from({ length: MAX_RISE_LEVELS }, (_, index) => (
-        <span key={index} className={index < level ? 'filled' : undefined} />
-      ))}
-    </span>
-  )
-}
-
 function ScenarioTable({ scenarios, selected }: { scenarios: Feature[]; selected?: Feature }) {
   return (
     <div className="table-wrap">
@@ -391,6 +489,8 @@ function SituationReport({
   selected,
   settlements,
   villages,
+  landUse,
+  routes,
   layers,
   alert,
   onBack,
@@ -402,6 +502,8 @@ function SituationReport({
   selected: Feature
   settlements: Layer | null
   villages: Layer | null
+  landUse: LandUse | null
+  routes: Layer | null
   layers: Layers
   alert?: Alert
   onBack: () => void
@@ -574,6 +676,12 @@ function SituationReport({
       <h2 className="section-title">Census villages with flooded land</h2>
       <CensusVillages villages={villages} rise={rise} printable />
 
+      <h2 className="section-title">Land use in the flood area</h2>
+      <FloodedLandUse landUse={landUse} rise={rise} />
+
+      <h2 className="section-title">Roads in the flood area</h2>
+      <RoadCheck routes={routes} rise={rise} />
+
       <h2 className="section-title">All scenarios</h2>
       <ScenarioTable scenarios={scenarios} selected={selected} />
 
@@ -616,6 +724,8 @@ export default function App() {
   const layers = locationData?.layers ?? EMPTY_LAYERS
   const settlements = locationData?.settlements ?? null
   const villages = locationData?.villages ?? null
+  const landUse = locationData?.landUse ?? null
+  const routes = locationData?.routes ?? null
   const villageSummary = summariseVillages(villages, rise)
   const focusName = location?.focus ?? 'Location'
 
@@ -691,6 +801,30 @@ export default function App() {
         type: 'line',
         source: PILOT_AREA,
         paint: { 'line-color': '#ffd54a', 'line-width': 2, 'line-dasharray': [3, 2] },
+      })
+      map.addSource(ROUTES, { type: 'geojson', data: empty })
+      map.addLayer({
+        id: ROUTES_CASING,
+        type: 'line',
+        source: ROUTES,
+        filter: ROUTE_LINE_FILTER,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#16284a', 'line-width': 4.5 },
+      })
+      map.addLayer({
+        id: ROUTES,
+        type: 'line',
+        source: ROUTES,
+        filter: ROUTE_LINE_FILTER,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#ffffff', 'line-width': 2.5 },
+      })
+      map.addLayer({
+        id: ROUTES_FLOODED,
+        type: 'line',
+        source: ROUTES,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#e53935', 'line-width': 3 },
       })
       map.addSource(SETTLEMENTS, { type: 'geojson', data: empty })
       map.addLayer({
@@ -773,7 +907,8 @@ export default function App() {
       return (await response.json()) as T
     }
     const getLocationData = async (id: string): Promise<LocationData> => {
-      const [layerResults, settlementLayer, villageLayer] = await Promise.all([
+      const empty = (): Layer => ({ type: 'FeatureCollection', features: [] })
+      const [layerResults, settlementLayer, villageLayer, landUse, routeLayer] = await Promise.all([
         Promise.all(
           KINDS.map(
             async (kind) =>
@@ -781,12 +916,17 @@ export default function App() {
           ),
         ),
         getJson<Layer>(`/api/locations/${id}/settlements`),
-        getJson<Layer>(`/api/locations/${id}/villages`),
+        // These add detail, so a problem with them must never stop the flood map from loading
+        getJson<Layer>(`/api/locations/${id}/villages`).catch(empty),
+        getJson<LandUse>(`/api/locations/${id}/land-use`).catch((): LandUse => ({})),
+        getJson<Layer>(`/api/locations/${id}/routes`).catch(empty),
       ])
       return {
         layers: Object.fromEntries(layerResults) as Layers,
         settlements: settlementLayer,
         villages: villageLayer,
+        landUse,
+        routes: routeLayer,
       }
     }
     // Load every location up front, so switching never waits on the network
@@ -847,6 +987,7 @@ export default function App() {
       if (layer) (map.getSource(kind) as GeoJSONSource).setData(layer)
     }
     if (settlements) (map.getSource(SETTLEMENTS) as GeoJSONSource).setData(settlements)
+    if (routes) (map.getSource(ROUTES) as GeoJSONSource).setData(routes)
     const [west, south, east, north] = location.bbox
     ;(map.getSource(PILOT_AREA) as GeoJSONSource).setData({
       type: 'Feature',
@@ -862,7 +1003,7 @@ export default function App() {
         ],
       },
     })
-  }, [location, locationId, layers, settlements, mapReady])
+  }, [location, locationId, layers, settlements, routes, mapReady])
 
   useEffect(() => {
     const map = mapRef.current
@@ -883,6 +1024,14 @@ export default function App() {
       map.setPaintProperty(layerId, 'fill-opacity', id === locationId ? FLOOD_OPACITY : 0)
     }
     map.setLayoutProperty(SETTLEMENTS, 'visibility', simulatedVisibility)
+    for (const layerId of [ROUTES_CASING, ROUTES, ROUTES_FLOODED]) {
+      map.setLayoutProperty(layerId, 'visibility', simulatedVisibility)
+    }
+    map.setFilter(ROUTES_FLOODED, [
+      'all',
+      ['==', ['get', 'segment'], 'flooded'],
+      ['==', ['get', 'rise_m'], rise],
+    ])
     // A null level means the model never floods the place, and to-number would turn it into 0
     map.setFilter(SETTLEMENTS, [
       'case',
@@ -1000,21 +1149,21 @@ export default function App() {
             {location.name} · +{rise} m simulated scenario
           </span>
         )}
-        {riseValues.length > 0 && tab !== 'report' && (
+        {locations.length > 0 && tab !== 'report' && (
           <div className="topbar-actions">
             <select
               className="topbar-select"
-              aria-label="Flood scenario"
-              value={rise}
-              onChange={(event) => setRise(Number(event.target.value))}
+              aria-label="Study region"
+              value={locationId ?? ''}
+              onChange={(event) => setLocationId(event.target.value)}
             >
-              {riseValues.map((value) => (
-                <option key={value} value={value}>
-                  River rise +{value} m
+              {locations.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
                 </option>
               ))}
             </select>
-            {tab === 'scenario' && (
+            {tab === 'scenario' && riseValues.length > 0 && (
               <button
                 type="button"
                 className="topbar-button"
@@ -1029,46 +1178,29 @@ export default function App() {
       </header>
 
       <main className="content">
-        <h1>{TABS.find(({ id }) => id === tab)?.label ?? 'Flood Situation Report'}</h1>
-        <p className="subtitle">
-          {location && `${location.label}. `}Prototype, not for operational use.
-        </p>
+        {tab !== 'scenario' && (
+          <h1>{TABS.find(({ id }) => id === tab)?.label ?? 'Flood Situation Report'}</h1>
+        )}
+        {/* The header is left out of a printed report, so it needs its own prototype notice */}
+        {tab === 'report' && (
+          <p className="subtitle">
+            {location && `${location.label}. `}Prototype, not for operational use.
+          </p>
+        )}
         {error && (
           <p className="error" role="alert">
             Could not load data: {error}
           </p>
         )}
         {tab !== 'report' && locations.length > 0 && (
-          <LocationSwitch locations={locations} selectedId={locationId} onSelect={setLocationId} />
+          <section>
+            <h2 className="section-title">Study Region</h2>
+            <LocationSwitch locations={locations} selectedId={locationId} onSelect={setLocationId} />
+          </section>
         )}
 
         <div hidden={tab !== 'scenario'}>
-          <h2 className="section-title">Select flood scenario</h2>
-          {scenarios.length > 0 ? (
-            <div className="scenario-cards">
-              {scenarios.map((scenario) => {
-                const level = Number(scenario.properties.rise_m)
-                return (
-                  <button
-                    key={`${locationId}-${level}`}
-                    type="button"
-                    className="scenario-card"
-                    style={{ '--order': level } as CSSProperties}
-                    aria-pressed={level === rise}
-                    onClick={() => setRise(level)}
-                  >
-                    <RiseMeter level={level} />
-                    <span className="scenario-name">+{level} m river rise</span>
-                    <span>{formatArea(scenario.properties.flooded_area_km2)} flooded</span>
-                    <span>{scenario.properties.settlements_affected} mapped settlements</span>
-                    <span>
-                      {focusName} {focusStatus(pilotLevel, level).toLowerCase()}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          ) : (
+          {scenarios.length === 0 && (
             <p className="empty">{loading ? 'Loading flood data...' : 'No scenarios yet'}</p>
           )}
 
@@ -1218,6 +1350,12 @@ export default function App() {
 
               <h2 className="section-title census-title">Census villages with flooded land</h2>
               <CensusVillages villages={villages} rise={rise} />
+
+              <h2 className="section-title census-title">Land use in the flood area</h2>
+              <FloodedLandUse landUse={landUse} rise={rise} />
+
+              <h2 className="section-title census-title">Roads in the flood area</h2>
+              <RoadCheck routes={routes} rise={rise} />
             </section>
           </div>
         </div>
@@ -1290,6 +1428,8 @@ export default function App() {
             selected={selected}
             settlements={settlements}
             villages={villages}
+            landUse={landUse}
+            routes={routes}
             layers={layers}
             alert={alerts.find((alert) => alert.location === locationId && alert.rise_m === rise)}
             onBack={() => setTab('scenario')}

@@ -15,7 +15,7 @@ import httpx
 from shapely import STRtree
 from shapely.geometry import Point, shape
 
-from pilot_area import load_locations
+from pilot_area import load_boundary, load_locations, read_secret
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "raw"
@@ -33,13 +33,6 @@ QUALITY = (
     "left blank when the name is missing or shared, and a match can still be wrong. It is the "
     "whole village, not the number of people flooded. Village position is approximate"
 )
-
-
-def read_token() -> str:
-    for line in (ROOT / "backend" / ".env").read_text(encoding="utf-8-sig").splitlines():
-        if line.startswith("BHUVAN_VILLAGE_TOKEN="):
-            return line.split("=", 1)[1].strip()
-    raise SystemExit("BHUVAN_VILLAGE_TOKEN is missing from backend/.env")
 
 
 def grid_points(bbox: list[float]) -> list[tuple[float, float]]:
@@ -73,7 +66,7 @@ def collect(location: dict, points: list[tuple[float, float]], raw_path: Path) -
     if not missing:
         return answers
 
-    token = read_token()
+    token = read_secret("BHUVAN_VILLAGE_TOKEN")
     failures = 0
     with httpx.Client(timeout=25) as client:
         for number, (lon, lat) in enumerate(missing, 1):
@@ -186,7 +179,11 @@ def main() -> None:
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     raw_path = RAW_DIR / f"bhuvan_villages_{location_id}.json"
 
-    answers = collect(location, grid_points(location["bbox"]), raw_path)
+    points = grid_points(location["bbox"])
+    boundary = load_boundary(location_id)
+    if boundary is not None:
+        points = [point for point in points if boundary.contains(Point(point))]
+    answers = collect(location, points, raw_path)
     features = build_villages(location, answers)
     path = ROOT / "data" / "reference" / location_id / "villages.geojson"
     path.write_text(json.dumps({"type": "FeatureCollection", "features": features}), encoding="utf-8")

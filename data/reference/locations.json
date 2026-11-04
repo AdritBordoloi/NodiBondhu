@@ -5,6 +5,7 @@
     "label": "Simaluguri, Sivasagar district, Assam",
     "focus": "Simaluguri",
     "census_district": "Sibsagar",
+    "grid": "upper_assam",
     "coordinates": [94.7556049, 26.9202285],
     "bbox": [94.65, 26.82, 94.86, 27.02]
   },
@@ -14,7 +15,18 @@
     "label": "Sivasagar area, Assam",
     "focus": "Sivasagar",
     "census_district": "Sibsagar",
+    "grid": "upper_assam",
     "coordinates": [94.6394226, 26.9834936],
     "bbox": [94.4, 26.65, 95.0, 27.2]
+  },
+  {
+    "id": "karimganj",
+    "name": "Karimganj",
+    "label": "Karimganj area, Sribhumi (formerly Karimganj) district, Assam",
+    "focus": "Karimganj",
+    "census_district": "Karimganj",
+    "grid": "barak_valley",
+    "coordinates": [92.3681114, 24.8647214],
+    "bbox": [92.23, 24.7, 92.5, 24.92]
   }
 ]

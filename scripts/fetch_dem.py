@@ -1,27 +1,23 @@
-"""Download the Copernicus DEM GLO-30 terrain tiles for the model grid into data/raw."""
-import math
+"""Download the Copernicus DEM GLO-30 terrain tiles for the model grids into data/raw.
+
+Run: python scripts/fetch_dem.py [grid]
+With no grid name, it downloads the tiles for every grid.
+"""
+import sys
 from pathlib import Path
 
 import httpx
 
-from pilot_area import EAST, NORTH, SOUTH, WEST
+from pilot_area import GRIDS, dem_tile_names
 
 RAW_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
 BUCKET = "https://copernicus-dem-30m.s3.amazonaws.com"
 
 
-def tile_names() -> list[str]:
-    """Northern and eastern hemisphere tiles covering the grid."""
-    return [
-        f"Copernicus_DSM_COG_10_N{lat:02d}_00_E{lon:03d}_00_DEM"
-        for lat in range(math.floor(SOUTH), math.ceil(NORTH))
-        for lon in range(math.floor(WEST), math.ceil(EAST))
-    ]
-
-
 def main() -> None:
     RAW_DIR.mkdir(parents=True, exist_ok=True)
-    for name in tile_names():
+    grids = sys.argv[1:] or list(GRIDS)
+    for name in (tile for grid in grids for tile in dem_tile_names(grid)):
         target = RAW_DIR / f"{name}.tif"
         if target.exists():
             print(f"{target.name} already downloaded")

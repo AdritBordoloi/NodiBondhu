@@ -20,6 +20,14 @@ Every feature must have these properties:
 
 Other properties, such as `level_m`, are shown in the app automatically.
 
-Scenario files go in `simulated/<location>/`, one file per water level, for example `flood_plus_2m.geojson`, with a `rise_m` property on each feature. `scripts/build_flood_scenarios.py` writes them for every location. Never enter a number without a real source.
+Scenario files go in `simulated/<location>/`, one file per water level, for example `flood_plus_2m.geojson`, with a `rise_m` property on each feature. `scripts/build_flood_scenarios.py [grid]` writes them for the locations on a model grid. Never enter a number without a real source.
+
+Each location names its model grid in `reference/locations.json`, and the grids are listed in `scripts/pilot_area.py`. Simaluguri and Sivasagar share `upper_assam`, and Karimganj uses `barak_valley`. To add a location on a new grid, add the grid, then run `fetch_dem.py`, `fetch_osm.py` and `build_flood_scenarios.py` with its name.
+
+A location near a border can have a `reference/<location>/boundary.geojson`. Flood areas, settlements, villages and land use are then limited to the land inside it. Karimganj uses this so that land in Bangladesh isn't counted.
 
 Census villages go in `reference/<location>/villages.geojson`. `scripts/fetch_villages.py <location>` creates the file using Bhuvan's village lookup, and needs `BHUVAN_VILLAGE_TOKEN` in `backend/.env`. Keep that key out of Git and out of frontend code.
+
+Land use estimates go in `reference/<location>/land_use.json`. `scripts/fetch_land_use.py <location>` creates the file using Bhuvan's land use API, and needs `BHUVAN_LULC_AOI_TOKEN` in `backend/.env`.
+
+Road routes go in `reference/<location>/routes.geojson`. `scripts/fetch_routes.py [location]` creates the file using Bhuvan's shortest path API, and needs `BHUVAN_ROUTING_TOKEN` in `backend/.env` the first time. The routes to check are listed at the top of that script. Run it again after rebuilding flood scenarios.

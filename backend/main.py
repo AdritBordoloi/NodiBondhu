@@ -189,6 +189,24 @@ def get_villages(location_id: str) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+@app.get("/api/locations/{location_id}/routes")
+def get_routes(location_id: str) -> dict:
+    """Main road routes measured against the flood scenarios, or an empty layer."""
+    get_location(location_id)
+    path = DATA_DIR / "reference" / location_id / "routes.geojson"
+    if not path.exists():
+        return {"type": "FeatureCollection", "features": []}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+@app.get("/api/locations/{location_id}/land-use")
+def get_land_use(location_id: str) -> dict:
+    """Estimated land use per flood scenario, or an empty answer if not built yet."""
+    get_location(location_id)
+    path = DATA_DIR / "reference" / location_id / "land_use.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+
 class AlertRequest(BaseModel):
     location: str
     rise_m: int

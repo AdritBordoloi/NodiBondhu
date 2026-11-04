@@ -1,4 +1,7 @@
-"""Build what-if flood scenarios for the pilot area using Height Above Nearest River.
+"""Build what-if flood scenarios for the model grids using Height Above Nearest River.
+
+Run: python scripts/build_flood_scenarios.py [grid]
+With no grid name, it rebuilds every grid.
 
 Each cell's height is compared with the nearest river cell. A cell floods in a
 scenario when it is within the water rise of that river cell and is connected to
@@ -7,6 +10,7 @@ hydraulic model: it ignores flow, timing, embankments and channel changes.
 """
 import json
 import math
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -20,12 +24,12 @@ from rasterio.windows import Window
 from rasterio.windows import transform as window_transform
 from scipy import ndimage
 from shapely import set_precision
-from shapely.geometry import LineString, MultiPolygon, mapping, shape
+from shapely.geometry import LineString, MultiPolygon, Point, mapping, shape
 from shapely.ops import polygonize, unary_union
 
-from pilot_area import EAST, NORTH, SOUTH, WEST, load_locations
+from pilot_area import GRIDS, dem_tile_names, load_boundary, load_locations
 
-ROOT =Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "raw"
 SIMULATED_DIR = ROOT / "data" / "simulated"
 REFERENCE_DIR = ROOT / "data" / "reference"
@@ -43,13 +47,14 @@ QUALITY = (
     "on flat land. Ignores embankments, flow, timing and channel changes. Not checked against "
     "a real flood yet"
 )
+BOUNDARY_NOTE = "Only land inside the district boundary is counted, not land in Bangladesh"
 
 
-def load_dem():
-    sources = [rasterio.open(path) for path in sorted(RAW_DIR.glob("Copernicus_DSM_*.tif"))]
+def load_dem(grid: str):
+    sources = [rasterio.open(RAW_DIR / f"{name}.tif") for name in dem_tile_names(grid)]
     dem, transform = merge(
         sources,
-        bounds=(WEST, SOUTH, EAST, NORTH),
+        bounds=GRIDS[grid],
         res=CELL_DEGREES,
         resampling=Resampling.bilinear,
     )
@@ -76,9 +81,10 @@ def river_geometries(elements):
     return geometries
 
 
-def main() -> None:
-    dem, transform = load_dem()
-    elements = json.loads((RAW_DIR / "osm.json").read_text(encoding="utf-8"))
+def build_grid(grid: str) -> None:
+    west, south, east, north = GRIDS[grid]
+    dem, transform = load_dem(grid)
+    elements = json.loads((RAW_DIR / f"osm_{grid}.json").read_text(encoding="utf-8"))
 
     river = rasterize(
         [(geometry, 1) for geometry in river_geometries(elements)],
@@ -87,12 +93,12 @@ def main() -> None:
         all_touched=True,
         dtype="uint8",
     ).astype(bool)
-    print(f"grid {dem.shape}, river cells {river.sum()} ({river.mean():.1%})")
+    print(f"{grid} {dem.shape}, river cells {river.sum()} ({river.mean():.1%})")
 
     nearest = ndimage.distance_transform_edt(~river, return_distances=False, return_indices=True)
     height_above_river = np.clip(dem - dem[nearest[0], nearest[1]], 0, None)
 
-    lat_mid = math.radians((SOUTH + NORTH) / 2)
+    lat_mid = math.radians((south + north) / 2)
     cell_km2 = (CELL_DEGREES * 111.32) ** 2 * math.cos(lat_mid)
 
     first_flooded = np.full(dem.shape, np.nan)
@@ -110,14 +116,21 @@ def main() -> None:
     first_flooded[river] = RISES_M[0]
 
     for location in load_locations():
-        write_location(location, masks, first_flooded, elements, transform, cell_km2, timestamp)
+        if location["grid"] == grid:
+            write_location(location, masks, first_flooded, elements, transform, cell_km2, timestamp)
+
+
+def main() -> None:
+    for grid in sys.argv[1:] or GRIDS:
+        build_grid(grid)
 
 
 def write_location(location, masks, first_flooded, elements, transform, cell_km2, timestamp) -> None:
     """Cut one location out of the full grid and write its scenario and settlement files."""
     west, south, east, north = location["bbox"]
     # Python slices wrap on negative indexes, which would silently give wrong numbers
-    if not (WEST <= west < east <= EAST and SOUTH <= south < north <= NORTH):
+    grid_west, grid_south, grid_east, grid_north = GRIDS[location["grid"]]
+    if not (grid_west <= west < east <= grid_east and grid_south <= south < north <= grid_north):
         raise ValueError(f"{location['id']} bbox {location['bbox']} is outside the model grid")
     col_start = round((west - transform.c) / transform.a)
     col_end = round((east - transform.c) / transform.a)
@@ -131,12 +144,22 @@ def write_location(location, masks, first_flooded, elements, transform, cell_km2
     simulated_dir.mkdir(parents=True, exist_ok=True)
     reference_dir.mkdir(parents=True, exist_ok=True)
 
-    min_degrees2 = MIN_POLYGON_KM2 / (111.32**2 * math.cos(math.radians((SOUTH + NORTH) / 2)))
+    boundary = load_boundary(location["id"])
+    quality = f"{QUALITY}. {BOUNDARY_NOTE}" if boundary is not None else QUALITY
+    inside = (
+        rasterize([(boundary, 1)], out_shape=first_flooded.shape, transform=transform, dtype="uint8").astype(bool)
+        if boundary is not None
+        else np.ones(first_flooded.shape, dtype=bool)
+    )
+
+    min_degrees2 = MIN_POLYGON_KM2 / (111.32**2 * math.cos(math.radians((grid_south + grid_north) / 2)))
     settlements = []
     for element in elements:
         if element["type"] != "node":
             continue
         if not (west <= element["lon"] <= east and south <= element["lat"] <= north):
+            continue
+        if boundary is not None and not boundary.contains(Point(element["lon"], element["lat"])):
             continue
         row, col = rowcol(transform, element["lon"], element["lat"])
         if not (0 <= row < first_flooded.shape[0] and 0 <= col < first_flooded.shape[1]):
@@ -151,7 +174,7 @@ def write_location(location, masks, first_flooded, elements, transform, cell_km2
                     "name": element["tags"]["name"],
                     "source": f"Location from {RIVER_SOURCE}; flood level from NodiBondhu HAND model",
                     "timestamp": timestamp,
-                    "quality": QUALITY,
+                    "quality": quality,
                     "place": element["tags"]["place"],
                     "first_flooded_at_m": None if np.isnan(value) else int(value),
                 },
@@ -162,7 +185,7 @@ def write_location(location, masks, first_flooded, elements, transform, cell_km2
     )
 
     for rise, full_mask in masks.items():
-        flooded = full_mask[row_start:row_end, col_start:col_end]
+        flooded = (full_mask & inside)[row_start:row_end, col_start:col_end]
         polygons = [
             shape(geometry)
             for geometry, value in shapes(
@@ -200,7 +223,7 @@ def write_location(location, masks, first_flooded, elements, transform, cell_km2
                 ),
                 "source": f"NodiBondhu HAND model using {DEM_SOURCE} and rivers from {RIVER_SOURCE}",
                 "timestamp": timestamp,
-                "quality": QUALITY,
+                "quality": quality,
                 "rise_m": rise,
                 "flooded_area_km2": area,
                 "settlements_affected": affected,
