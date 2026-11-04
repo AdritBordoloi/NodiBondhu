@@ -1949,7 +1949,10 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <span className="brand">NodiBondhu</span>
+        <span className="brand">
+          <img src="/logo.png" alt="" width={40} height={40} />
+          NodiBondhu
+        </span>
         <nav className="tabs" aria-label="Sections">
           {TABS.map(({ id, label }) => (
             <button

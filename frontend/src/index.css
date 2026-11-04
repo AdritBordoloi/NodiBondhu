@@ -646,8 +646,16 @@ tr.selected td {
 }
 
 .brand {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
   font-size: 1.25rem;
   letter-spacing: -0.01em;
+}
+
+.brand img {
+  border-radius: 8px;
 }
 
 .tabs {
