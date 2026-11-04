@@ -21,3 +21,5 @@ Every feature must have these properties:
 Other properties, such as `level_m`, are shown in the app automatically.
 
 Scenario files go in `simulated/<location>/`, one file per water level, for example `flood_plus_2m.geojson`, with a `rise_m` property on each feature. `scripts/build_flood_scenarios.py` writes them for every location. Never enter a number without a real source.
+
+Census villages go in `reference/<location>/villages.geojson`. `scripts/fetch_villages.py <location>` creates the file using Bhuvan's village lookup, and needs `BHUVAN_VILLAGE_TOKEN` in `backend/.env`. Keep that key out of Git and out of frontend code.

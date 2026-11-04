@@ -80,7 +80,7 @@ type Location = {
   coordinates: [number, number]
   bbox: [number, number, number, number]
 }
-type LocationData = { layers: Layers; settlements: Layer }
+type LocationData = { layers: Layers; settlements: Layer; villages: Layer }
 
 type ReportInfo = { generatedAt: string; mapImage: string | null; layersShown: string[] }
 
@@ -153,6 +153,87 @@ function popupContent(properties: Properties) {
   return root
 }
 
+function summariseVillages(villages: Layer | null, rise: number) {
+  const reached = (villages?.features ?? [])
+    .filter((village) => {
+      const level = village.properties.first_flooded_at_m
+      return typeof level === 'number' && level <= rise
+    })
+    .sort(
+      (a, b) =>
+        Number(a.properties.first_flooded_at_m) - Number(b.properties.first_flooded_at_m) ||
+        Number(b.properties.population_2001 ?? -1) - Number(a.properties.population_2001 ?? -1),
+    )
+  const known = reached.filter((village) => village.properties.population_2001 !== null)
+  return {
+    reached,
+    people: known.reduce((total, village) => total + Number(village.properties.population_2001), 0),
+    missingCounts: reached.length - known.length,
+  }
+}
+
+function formatCount(value: string | number | null) {
+  return value === null ? 'No data' : Number(value).toLocaleString('en-IN')
+}
+
+function CensusVillages({
+  villages,
+  rise,
+  printable = false,
+}: {
+  villages: Layer | null
+  rise: number
+  printable?: boolean
+}) {
+  const quality = villages?.features[0]?.properties.quality
+  const source = villages?.features[0]?.properties.source
+  if (!villages?.features.length) {
+    return <p className="empty">Census village data is not available for this location yet.</p>
+  }
+  const { reached, people, missingCounts } = summariseVillages(villages, rise)
+  return (
+    <>
+      <p className="report-text">
+        <strong>
+          {reached.length} of {villages.features.length} census villages have flooded land at +
+          {rise} m.
+        </strong>{' '}
+        {formatCount(people)} people lived in those villages in 2001
+        {missingCounts > 0 &&
+          `, not counting ${missingCounts} villages with no reliable population figure, so the real total is higher`}
+        . This is the whole village population, not the number of people flooded.
+      </p>
+      {reached.length > 0 && (
+        <div className={printable ? 'table-wrap' : 'table-wrap village-table'}>
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Village</th>
+                <th scope="col">First flooded land at</th>
+                <th scope="col">Population, 2001</th>
+                <th scope="col">Households, 2001</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reached.map((village) => (
+                <tr key={String(village.properties.village_id ?? village.properties.name)}>
+                  <td>{village.properties.name}</td>
+                  <td>+{village.properties.first_flooded_at_m} m</td>
+                  <td>{formatCount(village.properties.population_2001)}</td>
+                  <td>{formatCount(village.properties.households_2001)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="note">
+        {quality}. Source: {source}.
+      </p>
+    </>
+  )
+}
+
 function findFocusLevel(settlements: Layer | null, focus: string) {
   const place = settlements?.features.find((feature) => feature.properties.name === focus)
   return place ? (place.properties.first_flooded_at_m as number | null) : undefined
@@ -223,15 +304,17 @@ function Readout({
   label,
   value,
   detail,
+  wide = false,
 }: {
   kind: Kind
   label: string
   value: string
   detail?: string
+  wide?: boolean
 }) {
   const info = KIND_INFO[kind]
   return (
-    <div className="field">
+    <div className={wide ? 'field field-wide' : 'field'}>
       <span className="field-label">{label}</span>
       <div className="field-value">
         <span className="kind-tag" style={{ color: info.color }}>
@@ -307,6 +390,7 @@ function SituationReport({
   scenarios,
   selected,
   settlements,
+  villages,
   layers,
   alert,
   onBack,
@@ -317,6 +401,7 @@ function SituationReport({
   scenarios: Feature[]
   selected: Feature
   settlements: Layer | null
+  villages: Layer | null
   layers: Layers
   alert?: Alert
   onBack: () => void
@@ -486,6 +571,9 @@ function SituationReport({
         Counts only cover places mapped in OpenStreetMap, so the real number will be higher.
       </p>
 
+      <h2 className="section-title">Census villages with flooded land</h2>
+      <CensusVillages villages={villages} rise={rise} printable />
+
       <h2 className="section-title">All scenarios</h2>
       <ScenarioTable scenarios={scenarios} selected={selected} />
 
@@ -527,6 +615,8 @@ export default function App() {
   const locationData = locationId ? allData?.[locationId] : undefined
   const layers = locationData?.layers ?? EMPTY_LAYERS
   const settlements = locationData?.settlements ?? null
+  const villages = locationData?.villages ?? null
+  const villageSummary = summariseVillages(villages, rise)
   const focusName = location?.focus ?? 'Location'
 
   useEffect(() => {
@@ -683,7 +773,7 @@ export default function App() {
       return (await response.json()) as T
     }
     const getLocationData = async (id: string): Promise<LocationData> => {
-      const [layerResults, settlementLayer] = await Promise.all([
+      const [layerResults, settlementLayer, villageLayer] = await Promise.all([
         Promise.all(
           KINDS.map(
             async (kind) =>
@@ -691,8 +781,13 @@ export default function App() {
           ),
         ),
         getJson<Layer>(`/api/locations/${id}/settlements`),
+        getJson<Layer>(`/api/locations/${id}/villages`),
       ])
-      return { layers: Object.fromEntries(layerResults) as Layers, settlements: settlementLayer }
+      return {
+        layers: Object.fromEntries(layerResults) as Layers,
+        settlements: settlementLayer,
+        villages: villageLayer,
+      }
     }
     // Load every location up front, so switching never waits on the network
     getJson<Location[]>('/api/locations')
@@ -1019,6 +1114,17 @@ export default function App() {
                   label="Rain, next 24 hours"
                   value={rain?.rain_next_24h_mm != null ? `${rain.rain_next_24h_mm} mm` : 'Pending'}
                 />
+                <Readout
+                  wide
+                  kind="simulated"
+                  label={`People in census villages with flooded land at +${rise} m`}
+                  value={villages?.features.length ? formatCount(villageSummary.people) : 'Not available'}
+                  detail={
+                    villages?.features.length
+                      ? `${villageSummary.reached.length} villages. 2001 census, whole village population, not people flooded`
+                      : 'No census village data for this location yet'
+                  }
+                />
               </div>
 
               {riseValues.length > 0 && (
@@ -1109,6 +1215,9 @@ export default function App() {
               <p className="note">
                 Counts only cover places mapped in OpenStreetMap, so the real number will be higher.
               </p>
+
+              <h2 className="section-title census-title">Census villages with flooded land</h2>
+              <CensusVillages villages={villages} rise={rise} />
             </section>
           </div>
         </div>
@@ -1180,6 +1289,7 @@ export default function App() {
             scenarios={scenarios}
             selected={selected}
             settlements={settlements}
+            villages={villages}
             layers={layers}
             alert={alerts.find((alert) => alert.location === locationId && alert.rise_m === rise)}
             onBack={() => setTab('scenario')}

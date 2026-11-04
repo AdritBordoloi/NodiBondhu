@@ -179,6 +179,16 @@ def get_settlements(location_id: str) -> dict:
     return read_settlements(location_id)
 
 
+@app.get("/api/locations/{location_id}/villages")
+def get_villages(location_id: str) -> dict:
+    """Census villages, or an empty layer for a location with no lookup yet."""
+    get_location(location_id)
+    path = DATA_DIR / "reference" / location_id / "villages.geojson"
+    if not path.exists():
+        return {"type": "FeatureCollection", "features": []}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 class AlertRequest(BaseModel):
     location: str
     rise_m: int
