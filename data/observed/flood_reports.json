@@ -1,0 +1,642 @@
+{
+ "kind": "observed",
+ "source": "Daily Flood Reports, DRIMS Assam, Assam State Disaster Management Authority",
+ "source_url": "https://sdrf.assam.gov.in/dfr/",
+ "quality": "Official counts for whole districts and revenue circles, not the study area boxes. People affected is not the same as people in floodwater, and reports can be revised after their date",
+ "days": [
+  {
+   "date": "2026-07-12",
+   "report_generated": "12-07-2026",
+   "rivers_above_danger": [
+    "Katakhal (MATIZURI (FFS))"
+   ],
+   "rivers_above_highest": [],
+   "state_people": 1367,
+   "state_crop_hectares": 26.0,
+   "checked_against_state_total": true,
+   "districts": {}
+  },
+  {
+   "date": "2026-07-13",
+   "report_generated": "31-07-2026",
+   "rivers_above_danger": [
+    "Katakhal (MATIZURI (FFS))"
+   ],
+   "rivers_above_highest": [],
+   "state_people": 9616,
+   "state_crop_hectares": 179.03,
+   "checked_against_state_total": true,
+   "districts": {
+    "Sivasagar": {
+     "villages": 25,
+     "people": 0,
+     "crop_hectares": 2.13,
+     "circles": {
+      "Nazira": {
+       "villages": 1,
+       "people": 0,
+       "crop_hectares": 0.13
+      },
+      "Sivsagar": {
+       "villages": 9,
+       "people": 0,
+       "crop_hectares": 0.0
+      },
+      "Amguri": {
+       "villages": 15,
+       "people": 0,
+       "crop_hectares": 2.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "date": "2026-07-14",
+   "report_generated": "14-07-2026",
+   "rivers_above_danger": [],
+   "rivers_above_highest": [],
+   "state_people": 37032,
+   "state_crop_hectares": 1103.943,
+   "checked_against_state_total": true,
+   "districts": {
+    "Sivasagar": {
+     "villages": 18,
+     "people": 0,
+     "crop_hectares": 7.98,
+     "circles": {
+      "Sivsagar": {
+       "villages": 9,
+       "people": 0,
+       "crop_hectares": 0.0
+      },
+      "Amguri": {
+       "villages": 9,
+       "people": 0,
+       "crop_hectares": 7.98
+      }
+     }
+    }
+   }
+  },
+  {
+   "date": "2026-07-15",
+   "report_generated": "14-08-2026",
+   "rivers_above_danger": [],
+   "rivers_above_highest": [],
+   "state_people": 35072,
+   "state_crop_hectares": 401.22,
+   "checked_against_state_total": true,
+   "districts": {
+    "Sivasagar": {
+     "villages": 24,
+     "people": 0,
+     "crop_hectares": 20.42,
+     "circles": {
+      "Sivsagar": {
+       "villages": 9,
+       "people": 0,
+       "crop_hectares": 0.0
+      },
+      "Amguri": {
+       "villages": 15,
+       "people": 0,
+       "crop_hectares": 20.42
+      }
+     }
+    }
+   }
+  },
+  {
+   "date": "2026-07-16",
+   "report_generated": "16-07-2026",
+   "rivers_above_danger": [],
+   "rivers_above_highest": [],
+   "state_people": 30346,
+   "state_crop_hectares": 3180.33,
+   "checked_against_state_total": true,
+   "districts": {
+    "Sivasagar": {
+     "villages": 17,
+     "people": 0,
+     "crop_hectares": 4.0,
+     "circles": {
+      "Sivsagar": {
+       "villages": 9,
+       "people": 0,
+       "crop_hectares": 0.0
+      },
+      "Amguri": {
+       "villages": 8,
+       "people": 0,
+       "crop_hectares": 4.0
+      }
+     }
+    },
+    "Charaideo": {
+     "villages": 5,
+     "people": 279,
+     "crop_hectares": 20.0,
+     "circles": {
+      "Mahmora": {
+       "villages": 5,
+       "people": 279,
+       "crop_hectares": 20.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "date": "2026-07-17",
+   "report_generated": "17-07-2026",
+   "rivers_above_danger": [],
+   "rivers_above_highest": [],
+   "state_people": 21274,
+   "state_crop_hectares": 3379.05,
+   "checked_against_state_total": true,
+   "districts": {
+    "Sivasagar": {
+     "villages": 21,
+     "people": 0,
+     "crop_hectares": 11.31,
+     "circles": {
+      "Nazira": {
+       "villages": 1,
+       "people": 0,
+       "crop_hectares": 1.3
+      },
+      "Demow": {
+       "villages": 3,
+       "people": 0,
+       "crop_hectares": 0.25
+      },
+      "Amguri": {
+       "villages": 8,
+       "people": 0,
+       "crop_hectares": 9.76
+      },
+      "Sivsagar": {
+       "villages": 9,
+       "people": 0,
+       "crop_hectares": 0.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "date": "2026-07-18",
+   "report_generated": "18-07-2026",
+   "rivers_above_danger": [],
+   "rivers_above_highest": [],
+   "state_people": 23766,
+   "state_crop_hectares": 3124.22,
+   "checked_against_state_total": true,
+   "districts": {
+    "Sivasagar": {
+     "villages": 26,
+     "people": 0,
+     "crop_hectares": 14.03,
+     "circles": {
+      "Amguri": {
+       "villages": 10,
+       "people": 0,
+       "crop_hectares": 12.43
+      },
+      "Sivsagar": {
+       "villages": 11,
+       "people": 0,
+       "crop_hectares": 1.3
+      },
+      "Demow": {
+       "villages": 5,
+       "people": 0,
+       "crop_hectares": 0.3
+      }
+     }
+    }
+   }
+  },
+  {
+   "date": "2026-07-19",
+   "report_generated": "27-07-2026",
+   "rivers_above_danger": [
+    "Burhidihing (Chenimari(Khowang))"
+   ],
+   "rivers_above_highest": [],
+   "state_people": 57199,
+   "state_crop_hectares": 3874.8374,
+   "checked_against_state_total": true,
+   "districts": {
+    "Sivasagar": {
+     "villages": 61,
+     "people": 1502,
+     "crop_hectares": 117.26,
+     "circles": {
+      "Sivsagar": {
+       "villages": 12,
+       "people": 0,
+       "crop_hectares": 1.3
+      },
+      "Nazira": {
+       "villages": 7,
+       "people": 846,
+       "crop_hectares": 0.0
+      },
+      "Amguri": {
+       "villages": 36,
+       "people": 656,
+       "crop_hectares": 113.46
+      },
+      "Demow": {
+       "villages": 6,
+       "people": 0,
+       "crop_hectares": 2.5
+      }
+     }
+    },
+    "Charaideo": {
+     "villages": 57,
+     "people": 23891,
+     "crop_hectares": 741.68,
+     "circles": {
+      "Sapekhati": {
+       "villages": 11,
+       "people": 1902,
+       "crop_hectares": 0.0
+      },
+      "Mahmora": {
+       "villages": 24,
+       "people": 5239,
+       "crop_hectares": 453.0
+      },
+      "Sonari": {
+       "villages": 22,
+       "people": 16750,
+       "crop_hectares": 288.68
+      }
+     }
+    }
+   }
+  },
+  {
+   "date": "2026-07-20",
+   "report_generated": "31-10-2026",
+   "rivers_above_danger": [
+    "Brahmaputra (Neamatighat)",
+    "Burhidihing (Chenimari(Khowang))",
+    "Dhansiri (S) (Numaligarh)",
+    "Disang (Nanglamuraghat)"
+   ],
+   "rivers_above_highest": [
+    "Dikhou (Sivasagar)"
+   ],
+   "state_people": 362933,
+   "state_crop_hectares": 19099.5944,
+   "checked_against_state_total": true,
+   "districts": {
+    "Sivasagar": {
+     "villages": 189,
+     "people": 157727,
+     "crop_hectares": 9179.42,
+     "circles": {
+      "Nazira": {
+       "villages": 100,
+       "people": 105959,
+       "crop_hectares": 1000.0
+      },
+      "Amguri": {
+       "villages": 61,
+       "people": 41658,
+       "crop_hectares": 7338.42
+      },
+      "Sivsagar": {
+       "villages": 13,
+       "people": 7957,
+       "crop_hectares": 200.0
+      },
+      "Demow": {
+       "villages": 11,
+       "people": 0,
+       "crop_hectares": 560.0
+      },
+      "Sonari RC part": {
+       "villages": 4,
+       "people": 2153,
+       "crop_hectares": 81.0
+      }
+     }
+    },
+    "Charaideo": {
+     "villages": 108,
+     "people": 104415,
+     "crop_hectares": 1238.18,
+     "circles": {
+      "Sapekhati": {
+       "villages": 28,
+       "people": 12688,
+       "crop_hectares": 420.0
+      },
+      "Sonari": {
+       "villages": 59,
+       "people": 84540,
+       "crop_hectares": 347.68
+      },
+      "Mahmora": {
+       "villages": 21,
+       "people": 7187,
+       "crop_hectares": 470.5
+      }
+     }
+    }
+   }
+  },
+  {
+   "date": "2026-07-21",
+   "report_generated": "29-08-2026",
+   "rivers_above_danger": [
+    "Brahmaputra (Neamatighat)",
+    "Burhidihing (Chenimari(Khowang))",
+    "Dhansiri (S) (Golaghat)",
+    "Dhansiri (S) (Numaligarh)"
+   ],
+   "rivers_above_highest": [
+    "Dikhou (Sivasagar)",
+    "Disang (Nanglamuraghat)"
+   ],
+   "state_people": 566524,
+   "state_crop_hectares": 23931.16,
+   "checked_against_state_total": true,
+   "districts": {
+    "Sivasagar": {
+     "villages": 268,
+     "people": 359535,
+     "crop_hectares": 12674.61,
+     "circles": {
+      "Nazira": {
+       "villages": 100,
+       "people": 119973,
+       "crop_hectares": 3654.02
+      },
+      "Sivsagar": {
+       "villages": 49,
+       "people": 21349,
+       "crop_hectares": 652.0
+      },
+      "Amguri": {
+       "villages": 88,
+       "people": 82457,
+       "crop_hectares": 7388.59
+      },
+      "Demow": {
+       "villages": 21,
+       "people": 121926,
+       "crop_hectares": 980.0
+      },
+      "Sonari RC part": {
+       "villages": 10,
+       "people": 13830,
+       "crop_hectares": 0.0
+      }
+     }
+    },
+    "Charaideo": {
+     "villages": 128,
+     "people": 72646,
+     "crop_hectares": 1842.87,
+     "circles": {
+      "Mahmora": {
+       "villages": 32,
+       "people": 13428,
+       "crop_hectares": 1012.87
+      },
+      "Sapekhati": {
+       "villages": 30,
+       "people": 13933,
+       "crop_hectares": 450.0
+      },
+      "Sonari": {
+       "villages": 66,
+       "people": 45285,
+       "crop_hectares": 380.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "date": "2026-07-22",
+   "report_generated": "28-09-2026",
+   "rivers_above_danger": [
+    "Burhidihing (Chenimari(Khowang))",
+    "Dhansiri (S) (Numaligarh)",
+    "Dikhou (Sivasagar)",
+    "Kushiyara (SRIBHUMI (FFS))"
+   ],
+   "rivers_above_highest": [
+    "Disang (Nanglamuraghat)"
+   ],
+   "state_people": 653164,
+   "state_crop_hectares": 23655.604,
+   "checked_against_state_total": true,
+   "districts": {
+    "Sivasagar": {
+     "villages": 328,
+     "people": 392195,
+     "crop_hectares": 12416.61,
+     "circles": {
+      "Nazira": {
+       "villages": 126,
+       "people": 122505,
+       "crop_hectares": 2654.02
+      },
+      "Sonari RC part": {
+       "villages": 19,
+       "people": 26752,
+       "crop_hectares": 0.0
+      },
+      "Amguri": {
+       "villages": 92,
+       "people": 40203,
+       "crop_hectares": 7428.59
+      },
+      "Demow": {
+       "villages": 27,
+       "people": 41784,
+       "crop_hectares": 1110.0
+      },
+      "Sivsagar": {
+       "villages": 64,
+       "people": 160951,
+       "crop_hectares": 1224.0
+      }
+     }
+    },
+    "Charaideo": {
+     "villages": 129,
+     "people": 110755,
+     "crop_hectares": 1695.0,
+     "circles": {
+      "Mahmora": {
+       "villages": 44,
+       "people": 32869,
+       "crop_hectares": 0.0
+      },
+      "Sapekhati": {
+       "villages": 29,
+       "people": 14601,
+       "crop_hectares": 929.0
+      },
+      "Sonari": {
+       "villages": 56,
+       "people": 63285,
+       "crop_hectares": 766.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "date": "2026-07-23",
+   "report_generated": "28-08-2026",
+   "rivers_above_danger": [
+    "Burhidihing (Chenimari(Khowang))",
+    "Dhansiri (S) (Numaligarh)",
+    "Dikhou (Sivasagar)",
+    "Disang (Nanglamuraghat)",
+    "Kushiyara (SRIBHUMI (FFS))"
+   ],
+   "rivers_above_highest": [],
+   "state_people": 721024,
+   "state_crop_hectares": 24428.443,
+   "checked_against_state_total": true,
+   "districts": {
+    "Sivasagar": {
+     "villages": 300,
+     "people": 375682,
+     "crop_hectares": 5197.49,
+     "circles": {
+      "Nazira": {
+       "villages": 126,
+       "people": 83792,
+       "crop_hectares": 3119.0
+      },
+      "Sivsagar": {
+       "villages": 66,
+       "people": 182277,
+       "crop_hectares": 653.49
+      },
+      "Sonari RC part": {
+       "villages": 19,
+       "people": 26752,
+       "crop_hectares": 0.0
+      },
+      "Amguri": {
+       "villages": 62,
+       "people": 33607,
+       "crop_hectares": 0.0
+      },
+      "Demow": {
+       "villages": 27,
+       "people": 49254,
+       "crop_hectares": 1425.0
+      }
+     }
+    },
+    "Charaideo": {
+     "villages": 109,
+     "people": 186351,
+     "crop_hectares": 7718.37,
+     "circles": {
+      "Mahmora": {
+       "villages": 51,
+       "people": 65075,
+       "crop_hectares": 3400.17
+      },
+      "Sonari": {
+       "villages": 56,
+       "people": 121276,
+       "crop_hectares": 4318.2
+      },
+      "Sapekhati": {
+       "villages": 2,
+       "people": 0,
+       "crop_hectares": 0.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "date": "2026-07-24",
+   "report_generated": "28-08-2026",
+   "rivers_above_danger": [
+    "Dhansiri (S) (Numaligarh)",
+    "Dikhou (Sivasagar)",
+    "Disang (Nanglamuraghat)",
+    "Kushiyara (SRIBHUMI (FFS))"
+   ],
+   "rivers_above_highest": [],
+   "state_people": 705148,
+   "state_crop_hectares": 55209.777,
+   "checked_against_state_total": true,
+   "districts": {
+    "Sivasagar": {
+     "villages": 257,
+     "people": 348555,
+     "crop_hectares": 26025.52,
+     "circles": {
+      "Nazira": {
+       "villages": 41,
+       "people": 40004,
+       "crop_hectares": 7260.0
+      },
+      "Amguri": {
+       "villages": 62,
+       "people": 24303,
+       "crop_hectares": 8705.23
+      },
+      "Demow": {
+       "villages": 31,
+       "people": 60160,
+       "crop_hectares": 2145.2
+      },
+      "Sivsagar": {
+       "villages": 104,
+       "people": 201336,
+       "crop_hectares": 7895.89
+      },
+      "Sonari RC part": {
+       "villages": 19,
+       "people": 22752,
+       "crop_hectares": 19.2
+      }
+     }
+    },
+    "Charaideo": {
+     "villages": 148,
+     "people": 188404,
+     "crop_hectares": 15602.0,
+     "circles": {
+      "Mahmora": {
+       "villages": 67,
+       "people": 67128,
+       "crop_hectares": 7390.0
+      },
+      "Sapekhati": {
+       "villages": 1,
+       "people": 0,
+       "crop_hectares": 0.0
+      },
+      "Sonari": {
+       "villages": 80,
+       "people": 121276,
+       "crop_hectares": 8212.0
+      }
+     }
+    }
+   }
+  }
+ ]
+}

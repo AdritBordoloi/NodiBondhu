@@ -170,6 +170,23 @@ type ModelCheckResult = {
     overlap_score: number
   }[]
 }
+type FloodReportDay = {
+  date: string
+  report_generated: string | null
+  checked: boolean
+  villages: number | null
+  people: number | null
+  crop_hectares: number | null
+  river_status: 'highest' | 'danger' | 'not_listed'
+}
+type FloodReports = {
+  source?: string
+  source_url?: string
+  quality?: string
+  area?: string
+  gauge?: string
+  days?: FloodReportDay[]
+}
 type LocationData = {
   layers: Layers
   settlements: Layer
@@ -177,6 +194,7 @@ type LocationData = {
   landUse: LandUse
   routes: Layer
   modelCheck: ModelCheckResult
+  floodReports: FloodReports
 }
 
 type ReportInfo = {
@@ -1215,6 +1233,174 @@ function ScenarioCharts({
   )
 }
 
+const RIVER_STATUS_LABEL: Record<FloodReportDay['river_status'], string> = {
+  highest: 'Above highest flood level',
+  danger: 'Above danger level',
+  not_listed: 'Not listed above danger level',
+}
+
+function reportDayName(date: string) {
+  return new Date(`${date}T00:00:00Z`).toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'long',
+    timeZone: 'UTC',
+  })
+}
+
+function FloodReportSource({ reports }: { reports: FloodReports }) {
+  return (
+    <p className="note">
+      {reports.quality}. Source:{' '}
+      <a href={reports.source_url} target="_blank" rel="noreferrer">
+        {reports.source}
+      </a>
+      .
+    </p>
+  )
+}
+
+// What officials reported day by day during the flood. This is evidence the flood happened, not a
+// score for the model, because the reports cover whole districts and revenue circles
+function FloodTimeline({ reports, radarDate }: { reports: FloodReports | null; radarDate?: string }) {
+  const days = reports?.days ?? []
+  if (!reports || days.length === 0) {
+    return <p className="empty">Official flood reports are not available for this location yet.</p>
+  }
+  const { color } = KIND_INFO.observed
+  const radarDay = radarDate?.match(/^(\d+) July 2026$/)?.[1]
+  const river = String(reports.gauge).split(' (')[0]
+  const listed = days.filter((day) => day.villages !== null)
+  const peakOf = (field: 'villages' | 'people' | 'crop_hectares') =>
+    listed.reduce<FloodReportDay | undefined>(
+      (best, day) => (Number(day[field]) > Number(best?.[field] ?? -1) ? day : best),
+      undefined,
+    )
+  const bars = (field: 'villages' | 'people' | 'crop_hectares', unit = ''): ChartBar[] => {
+    const peak = peakOf(field)
+    return days.map((day) => ({
+      label: String(Number(day.date.slice(8))),
+      value: Number(day[field] ?? 0),
+      shown: day[field] === null ? 'Not listed' : `${formatCount(Math.round(Number(day[field])))}${unit}`,
+      highlight: day === peak,
+    }))
+  }
+  const headline = (field: 'villages' | 'people' | 'crop_hectares', unit = '') => {
+    const peak = peakOf(field)
+    return peak
+      ? `${formatCount(Math.round(Number(peak[field])))}${unit} on ${reportDayName(peak.date)}`
+      : 'Not listed'
+  }
+  const firstHigh = days.find((day) => day.river_status === 'highest')
+  const firstDanger = days.find((day) => day.river_status !== 'not_listed')
+  return (
+    <>
+      <p className="report-text">
+        <strong>
+          {firstHigh
+            ? `The ${river} was above its highest flood level on ${reportDayName(firstHigh.date)}. `
+            : firstDanger
+              ? `The ${river} was above danger level from ${reportDayName(firstDanger.date)}. `
+              : ''}
+          {listed.length > 0
+            ? `Reported villages affected in ${reports.area} peaked at ${headline('villages')}.`
+            : `${reports.area} is not listed as affected in these reports.`}
+        </strong>{' '}
+        These are official counts for {reports.area}, not the map area, so they show the flood was
+        real, not that the map is correct.
+      </p>
+      {listed.length > 0 && (
+        <div className="chart-grid chart-grid-three">
+          <ChartTile title="Villages affected" headline={headline('villages')} note="Reported each day, 12 to 24 July 2026.">
+            <ColumnChart bars={bars('villages')} color={color} tint="#bcd3ee" />
+          </ChartTile>
+          <ChartTile title="People affected" headline={headline('people')} note="Official count, not people in floodwater.">
+            <ColumnChart bars={bars('people')} color={color} tint="#bcd3ee" />
+          </ChartTile>
+          <ChartTile
+            title="Crop area submerged"
+            headline={headline('crop_hectares', ' ha')}
+            note="Hectares reported that day, which can be revised."
+          >
+            <ColumnChart bars={bars('crop_hectares', ' ha')} color={color} tint="#bcd3ee" />
+          </ChartTile>
+        </div>
+      )}
+      <div className="river-strip" role="list" aria-label={`${reports.gauge} status by day`}>
+        {days.map((day) => (
+          <div
+            role="listitem"
+            key={day.date}
+            className={`river-day river-${day.river_status}`}
+            title={`${reportDayName(day.date)}: ${RIVER_STATUS_LABEL[day.river_status]}`}
+          >
+            <span className="river-date">
+              {Number(day.date.slice(8))}
+              {String(Number(day.date.slice(8))) === radarDay && ' ◆'}
+            </span>
+            <span>
+              {day.river_status === 'highest' ? 'Highest' : day.river_status === 'danger' ? 'Danger' : '–'}
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="note">
+        July 2026, {reports.gauge}: Highest means above highest flood level, Danger means above danger
+        level, and – means not listed above danger level.
+        {radarDay && ' ◆ marks the radar image used in the model check.'}
+      </p>
+    </>
+  )
+}
+
+function FloodReportData({ reports }: { reports: FloodReports | null }) {
+  const days = reports?.days ?? []
+  return (
+    <section className="panel data-panel">
+      <h2 className="section-title">
+        <span className="swatch" style={{ backgroundColor: KIND_INFO.observed.color }} />
+        Official flood reports
+      </h2>
+      {!reports || days.length === 0 ? (
+        <p className="empty">Official flood reports are not available for this location yet.</p>
+      ) : (
+        <>
+          <p className="note">
+            Daily figures for {reports.area}, and {reports.gauge} status from the CWC bulletin quoted
+            in each report.
+          </p>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Date</th>
+                  <th scope="col">Villages affected</th>
+                  <th scope="col">People affected</th>
+                  <th scope="col">Crop area submerged</th>
+                  <th scope="col">River status</th>
+                  <th scope="col">Report generated</th>
+                </tr>
+              </thead>
+              <tbody>
+                {days.map((day) => (
+                  <tr key={day.date}>
+                    <td>{reportDayName(day.date)}</td>
+                    <td>{day.villages === null ? 'Not listed' : formatCount(day.villages)}</td>
+                    <td>{day.people === null ? 'Not listed' : formatCount(day.people)}</td>
+                    <td>{day.crop_hectares === null ? 'Not listed' : `${day.crop_hectares} ha`}</td>
+                    <td>{RIVER_STATUS_LABEL[day.river_status]}</td>
+                    <td>{day.report_generated ?? 'Not stated'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <FloodReportSource reports={reports} />
+        </>
+      )}
+    </section>
+  )
+}
+
 function captureMap(map: MapLibreMap): Promise<string | null> {
   return new Promise((resolve) => {
     const capture = () => {
@@ -1244,6 +1430,7 @@ function SituationReport({
   landUse,
   routes,
   modelCheck,
+  floodReports,
   layers,
   alert,
   onBack,
@@ -1258,6 +1445,7 @@ function SituationReport({
   landUse: LandUse | null
   routes: Layer | null
   modelCheck: ModelCheckResult | null
+  floodReports: FloodReports | null
   layers: Layers
   alert?: Alert
   onBack: () => void
@@ -1469,6 +1657,10 @@ function SituationReport({
       <h2 className="section-title">Model check against a real flood</h2>
       <ModelCheck check={modelCheck} />
 
+      <h2 className="section-title">Official flood reports, July 2026</h2>
+      <FloodTimeline reports={floodReports} radarDate={modelCheck?.image_date} />
+      {floodReports?.source && <FloodReportSource reports={floodReports} />}
+
       <h2 className="section-title">All scenarios</h2>
       <ScenarioTable scenarios={scenarios} selected={selected} />
 
@@ -1519,6 +1711,7 @@ export default function App() {
   const landUse = locationData?.landUse ?? null
   const routes = locationData?.routes ?? null
   const modelCheck = locationData?.modelCheck ?? null
+  const floodReports = locationData?.floodReports ?? null
   const villageSummary = summariseVillages(villages, rise)
   const focusName = location?.focus ?? 'Location'
 
@@ -1835,7 +2028,7 @@ export default function App() {
     }
     const getLocationData = async (id: string): Promise<LocationData> => {
       const empty = (): Layer => ({ type: 'FeatureCollection', features: [] })
-      const [layerResults, settlementLayer, villageLayer, landUse, routeLayer, modelCheck] = await Promise.all([
+      const [layerResults, settlementLayer, villageLayer, landUse, routeLayer, modelCheck, floodReports] = await Promise.all([
         Promise.all(
           KINDS.map(
             async (kind) =>
@@ -1850,6 +2043,7 @@ export default function App() {
         getJson<ModelCheckResult>(`/api/locations/${id}/model-check`).catch(
           (): ModelCheckResult => ({}),
         ),
+        getJson<FloodReports>(`/api/locations/${id}/flood-reports`).catch((): FloodReports => ({})),
       ])
       return {
         layers: Object.fromEntries(layerResults) as Layers,
@@ -1858,6 +2052,7 @@ export default function App() {
         landUse,
         routes: routeLayer,
         modelCheck,
+        floodReports,
       }
     }
     // Load every location up front, so switching never waits on the network
@@ -2298,28 +2493,40 @@ export default function App() {
                   <label className="field-label" htmlFor="rise">
                     River rise: <strong>+{rise} m</strong>
                   </label>
-                  <input
-                    id="rise"
-                    type="range"
-                    min={Math.min(...riseValues)}
-                    max={Math.max(...riseValues)}
-                    step={1}
-                    value={rise}
-                    onChange={(event) => {
-                      setPlaying(false)
-                      setRise(Number(event.target.value))
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="zoom-reset rise-play"
-                    aria-pressed={playing}
-                    onClick={() => setPlaying(!playing)}
-                  >
-                    {playing
-                      ? '❚❚ Pause'
-                      : `▶ Play +${Math.min(...riseValues)} m to +${Math.max(...riseValues)} m`}
-                  </button>
+                  <div className="rise-row">
+                    <input
+                      id="rise"
+                      type="range"
+                      min={Math.min(...riseValues)}
+                      max={Math.max(...riseValues)}
+                      step={1}
+                      value={rise}
+                      onChange={(event) => {
+                        setPlaying(false)
+                        setRise(Number(event.target.value))
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="rise-play"
+                      aria-pressed={playing}
+                      aria-label={playing ? 'Pause river rise' : 'Play river rise'}
+                      title={
+                        playing
+                          ? 'Pause'
+                          : `Play +${Math.min(...riseValues)} m to +${Math.max(...riseValues)} m`
+                      }
+                      onClick={() => setPlaying(!playing)}
+                    >
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+                        {playing ? (
+                          <path d="M6 4h4v16H6zM14 4h4v16h-4z" />
+                        ) : (
+                          <path d="M7 4l13 8-13 8z" />
+                        )}
+                      </svg>
+                    </button>
+                  </div>
                 </>
               )}
 
@@ -2456,6 +2663,15 @@ export default function App() {
             </section>
 
             <section className="panel scenario-details">
+              <h2 className="section-title">
+                <span className="swatch" style={{ backgroundColor: KIND_INFO.observed.color }} />
+                Official flood timeline, July 2026
+              </h2>
+              <FloodTimeline reports={floodReports} radarDate={modelCheck?.image_date} />
+              {floodReports?.source && <FloodReportSource reports={floodReports} />}
+            </section>
+
+            <section className="panel scenario-details">
               <h3 className="selected-name">
                 +{rise} m river rise{location && `, ${location.name} map area`}
               </h3>
@@ -2588,6 +2804,7 @@ export default function App() {
             </h2>
             <RoadCheck routes={routes} rise={rise} />
           </section>
+          <FloodReportData reports={floodReports} />
           <CensusData
             villages={villages}
             regionName={location?.name ?? 'this'}
@@ -2608,6 +2825,7 @@ export default function App() {
             landUse={landUse}
             routes={routes}
             modelCheck={modelCheck}
+            floodReports={floodReports}
             layers={layers}
             alert={alerts.find((alert) => alert.location === locationId && alert.rise_m === rise)}
             onBack={() => setTab('scenario')}

@@ -288,6 +288,62 @@ def get_model_check(location_id: str) -> dict:
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
 
 
+FLOOD_REPORT_AREAS = {
+    "simaluguri": {
+        "area": "Nazira revenue circle",
+        "district": "Sivasagar",
+        "circle": "Nazira",
+        "gauge": "Dikhou (Sivasagar)",
+    },
+    "sivasagar": {"area": "Sivasagar district", "district": "Sivasagar", "gauge": "Dikhou (Sivasagar)"},
+    "karimganj": {"area": "Sribhumi district", "district": "Sribhumi", "gauge": "Kushiyara (SRIBHUMI (FFS))"},
+}
+
+
+@app.get("/api/locations/{location_id}/flood-reports")
+def get_flood_reports(location_id: str) -> dict:
+    """Official daily flood report figures for the area that best matches a location."""
+    get_location(location_id)
+    path = DATA_DIR / "observed" / "flood_reports.json"
+    settings = FLOOD_REPORT_AREAS.get(location_id)
+    if not path.exists() or settings is None:
+        return {}
+    reports = json.loads(path.read_text(encoding="utf-8"))
+    days = []
+    for day in reports["days"]:
+        district = day["districts"].get(settings["district"])
+        figures = district
+        if district and "circle" in settings:
+            figures = district["circles"].get(settings["circle"])
+        if settings["gauge"] in day["rivers_above_highest"]:
+            river_status = "highest"
+        elif settings["gauge"] in day["rivers_above_danger"]:
+            river_status = "danger"
+        else:
+            river_status = "not_listed"
+        days.append(
+            {
+                "date": day["date"],
+                "report_generated": day["report_generated"],
+                "checked": day["checked_against_state_total"],
+                # None means the area was not listed that day, which is not the same as zero
+                "villages": figures["villages"] if figures else None,
+                "people": figures["people"] if figures else None,
+                "crop_hectares": figures["crop_hectares"] if figures else None,
+                "river_status": river_status,
+            }
+        )
+    return {
+        "kind": "observed",
+        "source": reports["source"],
+        "source_url": reports["source_url"],
+        "quality": reports["quality"],
+        "area": settings["area"],
+        "gauge": settings["gauge"],
+        "days": days,
+    }
+
+
 class AlertRequest(BaseModel):
     location: str
     rise_m: int

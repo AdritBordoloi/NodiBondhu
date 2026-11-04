@@ -310,16 +310,42 @@ h1:has(+ .subtitle) {
   cursor: default;
 }
 
+.rise-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.rise-row input[type='range'] {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
 .rise-play {
-  display: block;
-  width: 100%;
-  margin: 6px 0 16px;
-  font-weight: 600;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--navy);
+  cursor: pointer;
+}
+
+.rise-play:hover {
+  background: var(--selected);
 }
 
 .rise-play[aria-pressed='true'] {
-  background: var(--selected);
-  color: var(--navy);
+  border-color: var(--navy);
+  background: var(--navy);
+  color: #ffffff;
 }
 
 /* Two columns */
@@ -1010,6 +1036,47 @@ input:focus-visible {
 
 .chart-tables {
   margin-top: 20px;
+}
+
+.chart-grid-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* River status for each report day */
+.river-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(52px, 1fr));
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.river-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 5px 2px;
+  border-radius: 6px;
+  background: #f4f7fa;
+  color: var(--muted);
+  font-size: 0.6875rem;
+}
+
+.river-date {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.river-danger {
+  background: #fbf1e0;
+  color: #8a5a12;
+  font-weight: 600;
+}
+
+.river-highest {
+  background: #f6e1de;
+  color: #8c1d18;
+  font-weight: 700;
 }
 
 @media (max-width: 1100px) {
