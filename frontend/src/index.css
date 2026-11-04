@@ -808,36 +808,34 @@ input:focus-visible {
 }
 
 .route-matrix .route-clear {
-  background: #e7f4ec;
-  color: #1b5e3a;
+  color: #2f6f55;
 }
 
 .route-matrix .route-flooded {
-  background: #fdecea;
-  color: #8c1d18;
-}
-
-.route-matrix .route-safest {
-  color: #ffffff;
-  font-weight: 700;
-}
-
-.route-matrix .route-clear.route-safest {
-  background: #1b6b3f;
-}
-
-.route-matrix .route-flooded.route-safest {
-  background: #b45309;
+  color: #a04a42;
 }
 
 .route-matrix .route-level-now {
-  box-shadow: inset 2px 0 0 var(--navy), inset -2px 0 0 var(--navy);
+  background: #f4f7fa;
+  font-weight: 600;
+}
+
+.route-matrix th.route-level-now {
+  background: #e6ebf2;
+  color: var(--navy);
+}
+
+.route-matrix .route-safest {
+  background: var(--selected);
+  color: var(--navy);
   font-weight: 700;
 }
 
 .route-matrix tfoot th,
 .route-matrix tfoot td {
   border-top: 1px solid var(--border-strong);
+  background: #f1f4f8;
+  color: var(--navy);
   font-weight: 600;
 }
 

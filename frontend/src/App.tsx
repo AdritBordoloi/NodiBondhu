@@ -462,7 +462,8 @@ function RouteMatrix({
             ? `No route is clear, so the safest in the model is ${safestNow.properties.name}, with ${floodedKm(safestNow, rise)} km in the flood area.`
             : `The safest in the model is ${safestNow.properties.name}.`}
         </strong>{' '}
-        This is not a safety check, so confirm a road is open before using it.
+        This is not a safety check, so confirm a road is open before using it. * Only part of the
+        route was checked.
       </p>
       <div className="table-wrap">
         <table className="route-matrix">
@@ -536,15 +537,6 @@ function RouteMatrix({
           </tfoot>
         </table>
       </div>
-      <p className="note">
-        ★ marks the route with the least road in the flood area at that rise, and a tie goes to the
-        fully checked route, then the shorter one. Green means clear and amber means it still has
-        flooded road. A distance is the length of the route in the flood area. * Only the part of the route inside
-        the flood map was checked, so the rest is unknown. Routes can share the same road, so they may
-        all be cut together. Not reached only means the model did not reach the mapped point. There
-        are no shelter locations in this data. {list[0].properties.quality}. Source:{' '}
-        {list[0].properties.source}.
-      </p>
     </>
   )
 }
