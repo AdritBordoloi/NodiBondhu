@@ -218,6 +218,135 @@ h1:has(+ .subtitle) {
   }
 }
 
+/* Map legend */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 8px 0 14px;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.legend-link:hover {
+  text-decoration-style: solid;
+}
+
+.legend-swatch {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 12px;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+.legend-dot {
+  box-sizing: content-box;
+  border: 1px solid;
+  border-radius: 50%;
+}
+
+.legend-line {
+  width: 14px;
+  height: 3px;
+  outline: 1px solid #16284a;
+}
+
+.legend-fill {
+  width: 12px;
+  height: 10px;
+  opacity: 0.8;
+}
+
+.legend-box {
+  width: 12px;
+  height: 9px;
+  border: 2px dashed #e0a800;
+}
+
+.legend-pin {
+  width: 9px;
+  height: 9px;
+  border-radius: 50% 50% 50% 0;
+  background: #16284a;
+  transform: rotate(-45deg);
+}
+
+/* Map zoom */
+.zoom-control {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.zoom-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.zoom-row > :first-child {
+  flex: none;
+  width: 48px;
+}
+
+.zoom-row input[type='range'] {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.zoom-row select,
+.zoom-reset {
+  flex: none;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.8125rem;
+}
+
+.zoom-reset {
+  cursor: pointer;
+}
+
+.zoom-reset:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.zoom-control .note {
+  margin: 0;
+}
+
 /* Two columns */
 .columns {
   display: grid;

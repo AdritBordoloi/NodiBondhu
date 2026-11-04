@@ -180,6 +180,24 @@ def first_flood_level(point: Point, trees: dict) -> int | None:
     return None
 
 
+def census_details(record: dict) -> dict:
+    male_literate = number_or_none(record.get("m_lit"))
+    female_literate = number_or_none(record.get("f_lit"))
+    return {
+        "population": record.get("tot_p"),
+        "households": record.get("no_hh"),
+        "male": record.get("tot_m"),
+        "female": record.get("tot_f"),
+        "scheduled_caste": record.get("p_sc"),
+        "scheduled_tribe": record.get("p_st"),
+        "literate": (
+            male_literate + female_literate
+            if male_literate is not None and female_literate is not None
+            else None
+        ),
+    }
+
+
 def build_villages(location: dict, answers: dict, census: dict) -> list[dict]:
     district = location["census_district"].lower()
     trees = flood_trees(location)
@@ -202,9 +220,8 @@ def build_villages(location: dict, answers: dict, census: dict) -> list[dict]:
             if found:
                 position = census_position(found)
                 record = {
+                    **census_details(found),
                     "key": f"{position[0]},{position[1]}",
-                    "population": found.get("tot_p"),
-                    "households": found.get("no_hh"),
                     "taluk": found.get("tehs_name"),
                     "position": position,
                 }
@@ -219,9 +236,8 @@ def build_villages(location: dict, answers: dict, census: dict) -> list[dict]:
             ]
             if len(matches) == 1:
                 record = {
+                    **census_details(matches[0]),
                     "key": matches[0]["vid"].strip(),
-                    "population": matches[0].get("tot_p"),
-                    "households": matches[0].get("no_hh"),
                     "taluk": matches[0].get("thq_name"),
                     "position": None,
                 }
@@ -284,6 +300,12 @@ def build_villages(location: dict, answers: dict, census: dict) -> list[dict]:
                     "quality": QUALITY,
                     "population_2001": population,
                     "households_2001": households,
+                    "male_2001": number_or_none(record.get("male")),
+                    "female_2001": number_or_none(record.get("female")),
+                    "scheduled_caste_2001": number_or_none(record.get("scheduled_caste")),
+                    "scheduled_tribe_2001": number_or_none(record.get("scheduled_tribe")),
+                    "literate_2001": number_or_none(record.get("literate")),
+                    "village_key": record.get("key") or f"name:{entry['name'].lower()}",
                     "district": location["census_district"],
                     "taluk": (record.get("taluk") or "").strip().title() or None,
                     "points_checked": len(entry["points"]),

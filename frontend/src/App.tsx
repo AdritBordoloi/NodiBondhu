@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   Map as MapLibreMap,
   Marker,
@@ -19,6 +19,17 @@ setWorkerUrl(workerUrl)
 // Only shown for a moment, until the locations have loaded
 const INITIAL_CENTER: [number, number] = [94.7, 26.93]
 const BHUVAN_ATTRIBUTION = 'Imagery: Bhuvan, NRSC/ISRO'
+// Free font files for map labels. If they cannot load, the map still works without names
+const GLYPHS_URL = 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf'
+const LABEL_FONT = ['Open Sans Regular']
+const LABEL_FONT_BOLD = ['Open Sans Bold']
+const LABEL_TEXT = '#ffffff'
+const LABEL_HALO = 'rgba(10, 20, 40, 0.9)'
+const PLACE_LABELS_MAJOR = 'place-labels-major'
+const PLACE_LABELS_MINOR = 'place-labels-minor'
+const VILLAGE_LABELS = 'village-labels'
+const MINOR_LABEL_MIN_ZOOM = 10.5
+const VILLAGE_LABEL_MIN_ZOOM = 12
 const INDIA_BOUNDS: [number, number, number, number] = [68, 6, 98, 38]
 // Only some Bhuvan layers match the web map's projection. bhuvan_marc is the clearest
 // when zoomed out but stops at zoom 11, and bhuvan_wbase_v3 is sharp from zoom 12
@@ -32,6 +43,13 @@ const ROUTES_CASING = 'routes-casing'
 const ROUTES_FLOODED = 'routes-flooded'
 const ROUTE_ENDS = 'route-ends'
 const VILLAGES = 'villages'
+const CENSUS_DOT_COLOR = '#29b6f6'
+const CENSUS_SECTION_ID = 'census-data'
+const ZOOM_MIN = 1
+const ZOOM_MAX = 4
+const ZOOM_STEP = 0.2
+const ZOOM_LEVELS = Array.from({ length: 16 }, (_, index) => Number((1 + index * ZOOM_STEP).toFixed(1)))
+const ZOOM_DURATION_MS = 500
 const ROUTE_LINE_FILTER: ExpressionSpecification = ['==', ['get', 'segment'], 'route']
 const ALERT_PREVIEW_COUNT = 8
 const FLIGHT_DURATION_MS = 2400
@@ -63,6 +81,7 @@ const STANDARD_FIELDS = new Set([
   'timestamp',
   'quality',
   'points_checked',
+  'village_key',
 ])
 const POLYGON_FILTER: ExpressionSpecification = [
   'in',
@@ -261,8 +280,8 @@ function CensusVillages({
         </div>
       )}
       <p className="note">
-        On the map, small blue dots are villages with a census figure, and small grey dots have no
-        reliable figure. {quality}. Source: {source}.
+        On the map, small blue dots are villages with flooded land and a census figure. Villages with
+        no reliable figure are listed here but not drawn. {quality}. Source: {source}.
       </p>
     </>
   )
@@ -353,6 +372,220 @@ function RoadCheck({ routes, rise }: { routes: Layer | null; rise: number }) {
         {list[0].properties.quality}. Source: {list[0].properties.source}.
       </p>
     </>
+  )
+}
+
+function CensusData({
+  villages,
+  regionName,
+  onBack,
+}: {
+  villages: Layer | null
+  regionName: string
+  onBack: () => void
+}) {
+  const withFigure = (villages?.features ?? [])
+    .filter((village) => village.properties.population_2001 !== null)
+    .sort((a, b) => String(a.properties.name).localeCompare(String(b.properties.name)))
+  const people = withFigure.reduce(
+    (total, village) => total + Number(village.properties.population_2001),
+    0,
+  )
+  const first = withFigure[0]?.properties
+  return (
+    <section id={CENSUS_SECTION_ID} className="panel data-panel">
+      <h2 className="section-title">
+        <span className="swatch" style={{ backgroundColor: CENSUS_DOT_COLOR }} />
+        Census villages
+      </h2>
+      {withFigure.length === 0 ? (
+        <p className="empty">Census village data is not available for {regionName} yet.</p>
+      ) : (
+        <>
+          <p className="note">
+            {withFigure.length} villages in the {regionName} area have a census figure, with{' '}
+            {formatCount(people)} people in 2001. These are whole village populations, not people
+            flooded, and villages with no reliable figure are left out.
+          </p>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Village</th>
+                  <th scope="col">Tehsil</th>
+                  <th scope="col">Population</th>
+                  <th scope="col">Households</th>
+                  <th scope="col">Male</th>
+                  <th scope="col">Female</th>
+                  <th scope="col">Scheduled caste</th>
+                  <th scope="col">Scheduled tribe</th>
+                  <th scope="col">Literate</th>
+                  <th scope="col">First flooded land at</th>
+                </tr>
+              </thead>
+              <tbody>
+                {withFigure.map((village) => {
+                  const level = village.properties.first_flooded_at_m
+                  return (
+                    <tr key={String(village.properties.village_key)}>
+                      <td>{village.properties.name}</td>
+                      <td>{village.properties.taluk ?? 'Not known'}</td>
+                      <td>{formatCount(village.properties.population_2001)}</td>
+                      <td>{formatCount(village.properties.households_2001)}</td>
+                      <td>{formatCount(village.properties.male_2001)}</td>
+                      <td>{formatCount(village.properties.female_2001)}</td>
+                      <td>{formatCount(village.properties.scheduled_caste_2001)}</td>
+                      <td>{formatCount(village.properties.scheduled_tribe_2001)}</td>
+                      <td>{formatCount(village.properties.literate_2001)}</td>
+                      <td>{typeof level === 'number' ? `+${level} m` : 'Not reached'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="note">
+            {first?.quality}. Source: {first?.source}.{' '}
+            <button type="button" className="link" onClick={onBack}>
+              Back to the map
+            </button>
+          </p>
+        </>
+      )}
+    </section>
+  )
+}
+
+function MapLegend({
+  kinds,
+  rise,
+  focus,
+  villages,
+  routes,
+  hasGauge,
+  onVillageClick,
+}: {
+  kinds: Kind[]
+  rise: number
+  focus: string
+  villages: Layer | null
+  routes: Layer | null
+  hasGauge: boolean
+  onVillageClick?: () => void
+}) {
+  const showSimulated = kinds.includes('simulated')
+  const dot = (color: string, size = 8, stroke = '#ffffff') => (
+    <span className="legend-dot" style={{ background: color, width: size, height: size, borderColor: stroke }} />
+  )
+  const line = (color: string) => <span className="legend-line" style={{ background: color }} />
+  const items: {
+    key: string
+    symbol: ReactNode
+    label: string
+    detail: string
+    show: boolean
+    onClick?: () => void
+  }[] = [
+    {
+      key: 'pin',
+      symbol: <span className="legend-pin" />,
+      label: focus,
+      detail: `${focus} location`,
+      show: true,
+    },
+    {
+      key: 'area',
+      symbol: <span className="legend-box" />,
+      label: 'Study area',
+      detail: 'Area covered by these results',
+      show: true,
+    },
+    {
+      key: 'flood',
+      symbol: <span className="legend-fill" style={{ background: KIND_INFO.simulated.color }} />,
+      label: `Flood, +${rise} m`,
+      detail: `Flood area at +${rise} m`,
+      show: showSimulated,
+    },
+    {
+      key: 'settlement',
+      symbol: dot(KIND_INFO.simulated.color, 9),
+      label: 'Flooded settlement',
+      detail: 'Mapped settlement reached by flood',
+      show: showSimulated,
+    },
+    {
+      key: 'village',
+      symbol: dot(CENSUS_DOT_COLOR, 7, '#16284a'),
+      label: 'Village, census figure',
+      detail: onVillageClick
+        ? 'Village with flooded land and a census figure. Select to see the census data'
+        : 'Village with flooded land and a census figure',
+      show:
+        showSimulated &&
+        (villages?.features ?? []).some((village) => village.properties.population_2001 !== null),
+      onClick: onVillageClick,
+    },
+    {
+      key: 'route',
+      symbol: line('#ffffff'),
+      label: 'Road route',
+      detail: 'Main road route',
+      show: showSimulated && Boolean(routes?.features.length),
+    },
+    {
+      key: 'route-flooded',
+      symbol: line('#e53935'),
+      label: 'Flooded road',
+      detail: 'Road stretch in flood area',
+      show: showSimulated && Boolean(routes?.features.length),
+    },
+    {
+      key: 'route-end',
+      symbol: dot('#ffffff', 8, '#16284a'),
+      label: 'Route end',
+      detail: 'End of a road route',
+      show: showSimulated && Boolean(routes?.features.length),
+    },
+    {
+      key: 'rain',
+      symbol: dot(KIND_INFO.forecast.color, 10),
+      label: 'Rain forecast',
+      detail: 'Rain forecast point',
+      show: kinds.includes('forecast'),
+    },
+    {
+      key: 'gauge',
+      symbol: dot(KIND_INFO.observed.color, 10),
+      label: 'River gauge',
+      detail: 'River gauge reading',
+      show: kinds.includes('observed') && hasGauge,
+    },
+  ]
+  return (
+    <ul className="legend" aria-label="Map legend">
+      {items
+        .filter((item) => item.show)
+        .map((item) => (
+          <li key={item.key} title={item.detail}>
+            {item.onClick ? (
+              <button type="button" className="legend-link" onClick={item.onClick}>
+                <span className="legend-swatch" aria-hidden="true">
+                  {item.symbol}
+                </span>
+                {item.label}
+              </button>
+            ) : (
+              <>
+                <span className="legend-swatch" aria-hidden="true">
+                  {item.symbol}
+                </span>
+                {item.label}
+              </>
+            )}
+          </li>
+        ))}
+    </ul>
   )
 }
 
@@ -612,6 +845,14 @@ function SituationReport({
             src={info.mapImage}
             alt={`Map of the +${rise} m flood scenario in the ${location.name} area`}
           />
+          <MapLegend
+            kinds={KINDS.filter((kind) => info.layersShown.includes(KIND_INFO[kind].label))}
+            rise={rise}
+            focus={location.focus}
+            villages={villages}
+            routes={routes}
+            hasGauge={Boolean(layers.observed?.features.length)}
+          />
           <figcaption className="note">
             Map view when this report was generated. Layers shown:{' '}
             {info.layersShown.join(', ') || 'none'}. {BHUVAN_ATTRIBUTION}. Map data ©
@@ -716,6 +957,7 @@ export default function App() {
   const markerRef = useRef<Marker | null>(null)
   const cameraLocationRef = useRef<string | null>(null)
   const popupRef = useRef<Popup | null>(null)
+  const scrollToCensusRef = useRef(false)
   const [tab, setTab] = useState<TabId | 'report'>('scenario')
   const [reportInfo, setReportInfo] = useState<ReportInfo | null>(null)
   const [locations, setLocations] = useState<Location[]>([])
@@ -725,6 +967,7 @@ export default function App() {
   const layersRef = useRef<Layers>(EMPTY_LAYERS)
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [rise, setRise] = useState(2)
+  const [zoom, setZoom] = useState(1)
   const [visible, setVisible] = useState<Record<Kind, boolean>>({
     observed: true,
     forecast: true,
@@ -751,6 +994,7 @@ export default function App() {
       zoom: 9,
       style: {
         version: 8,
+        glyphs: GLYPHS_URL,
         sources: {
           osm: {
             type: 'raster',
@@ -858,12 +1102,7 @@ export default function App() {
         type: 'circle',
         source: VILLAGES,
         paint: {
-          'circle-color': [
-            'case',
-            ['==', ['typeof', ['get', 'population_2001']], 'number'],
-            '#29b6f6',
-            '#b0bec5',
-          ],
+          'circle-color': CENSUS_DOT_COLOR,
           'circle-radius': 3.5,
           'circle-stroke-color': '#16284a',
           'circle-stroke-width': 1,
@@ -880,6 +1119,64 @@ export default function App() {
           'circle-stroke-color': '#ffffff',
           'circle-stroke-width': 1.5,
         },
+      })
+      // Place names are drawn from OpenStreetMap, like the default map. They sit above the flood
+      // area and roads but below the dots, and the map hides names that would overlap
+      const labelPaint = {
+        'text-color': LABEL_TEXT,
+        'text-halo-color': LABEL_HALO,
+        'text-halo-width': 1.6,
+      }
+      map.addLayer(
+        {
+          id: PLACE_LABELS_MAJOR,
+          type: 'symbol',
+          source: SETTLEMENTS,
+          filter: ['in', ['get', 'place'], ['literal', ['city', 'town']]],
+          layout: {
+            'text-field': ['get', 'name'],
+            'text-font': LABEL_FONT_BOLD,
+            'text-size': ['match', ['get', 'place'], 'city', 15, 13],
+            'text-anchor': 'top',
+            'text-offset': [0, 0.5],
+            'symbol-sort-key': ['match', ['get', 'place'], 'city', 0, 1],
+          },
+          paint: labelPaint,
+        },
+        VILLAGES,
+      )
+      map.addLayer(
+        {
+          id: PLACE_LABELS_MINOR,
+          type: 'symbol',
+          source: SETTLEMENTS,
+          minzoom: MINOR_LABEL_MIN_ZOOM,
+          filter: ['!', ['in', ['get', 'place'], ['literal', ['city', 'town']]]],
+          layout: {
+            'text-field': ['get', 'name'],
+            'text-font': LABEL_FONT,
+            'text-size': ['match', ['get', 'place'], 'suburb', 12, 11],
+            'text-anchor': 'top',
+            'text-offset': [0, 0.5],
+            'symbol-sort-key': ['match', ['get', 'place'], 'suburb', 2, 'village', 3, 4],
+          },
+          paint: labelPaint,
+        },
+        VILLAGES,
+      )
+      map.addLayer({
+        id: VILLAGE_LABELS,
+        type: 'symbol',
+        source: VILLAGES,
+        minzoom: VILLAGE_LABEL_MIN_ZOOM,
+        layout: {
+          'text-field': ['get', 'name'],
+          'text-font': LABEL_FONT,
+          'text-size': 10,
+          'text-anchor': 'top',
+          'text-offset': [0, 0.5],
+        },
+        paint: { ...labelPaint, 'text-color': '#d6f1ff' },
       })
       for (const kind of SHARED_MAP_KINDS) {
         const { color } = KIND_INFO[kind]
@@ -945,6 +1242,11 @@ export default function App() {
   // The map has no size while its tab is hidden, so measure again on return
   useEffect(() => {
     if (tab === 'scenario') mapRef.current?.resize()
+    // The data tab is only visible once this runs, so the section can be scrolled to now
+    if (tab === 'data' && scrollToCensusRef.current) {
+      scrollToCensusRef.current = false
+      document.getElementById(CENSUS_SECTION_ID)?.scrollIntoView({ block: 'start' })
+    }
   }, [tab])
 
   useEffect(() => {
@@ -1076,7 +1378,14 @@ export default function App() {
       map.setPaintProperty(layerId, 'fill-opacity', id === locationId ? FLOOD_OPACITY : 0)
     }
     map.setLayoutProperty(SETTLEMENTS, 'visibility', simulatedVisibility)
-    for (const layerId of [ROUTES_CASING, ROUTES, ROUTES_FLOODED, ROUTE_ENDS, VILLAGES]) {
+    for (const layerId of [
+      ROUTES_CASING,
+      ROUTES,
+      ROUTES_FLOODED,
+      ROUTE_ENDS,
+      VILLAGES,
+      VILLAGE_LABELS,
+    ]) {
       map.setLayoutProperty(layerId, 'visibility', simulatedVisibility)
     }
     map.setFilter(ROUTES_FLOODED, [
@@ -1092,7 +1401,14 @@ export default function App() {
       false,
     ]
     map.setFilter(SETTLEMENTS, reachedFilter)
-    map.setFilter(VILLAGES, reachedFilter)
+    // Only villages with a census figure are drawn
+    const drawnVillages: ExpressionSpecification = [
+      'all',
+      reachedFilter,
+      ['==', ['typeof', ['get', 'population_2001']], 'number'],
+    ]
+    map.setFilter(VILLAGES, drawnVillages)
+    map.setFilter(VILLAGE_LABELS, drawnVillages)
   }, [locations, locationId, visible, rise, mapReady, allData])
 
   useEffect(() => {
@@ -1106,6 +1422,8 @@ export default function App() {
       .setPopup(new Popup().setText(`${location.focus} location`))
     // A hidden map has no size to fit, so it moves when its tab comes back
     if (cameraLocationRef.current === location.id || tab !== 'scenario') return
+    // A new region starts at its full view
+    setZoom(1)
     const [west, south, east, north] = location.bbox
     const camera = map.cameraForBounds(
       [
@@ -1148,6 +1466,32 @@ export default function App() {
   const pilotDetail = pilotLevel != null ? `Model floods it from +${pilotLevel} m` : undefined
   const latestAlert = alerts[0]
   const loading = !allData && !error
+
+  // The view stays inside the study area, as near the rain forecast point as it can
+  const applyZoom = (amount: number) => {
+    setZoom(amount)
+    const map = mapRef.current
+    if (!map || !location) return
+    const [west, south, east, north] = location.bbox
+    const [centreLon, centreLat] = location.coordinates
+    const halfWidth = (east - west) / amount / 2
+    const halfHeight = (north - south) / amount / 2
+    const lon = Math.min(east - halfWidth, Math.max(west + halfWidth, centreLon))
+    const lat = Math.min(north - halfHeight, Math.max(south + halfHeight, centreLat))
+    const camera = map.cameraForBounds(
+      [
+        [lon - halfWidth, lat - halfHeight],
+        [lon + halfWidth, lat + halfHeight],
+      ],
+      { padding: 24 },
+    )
+    if (camera) map.easeTo({ ...camera, duration: ZOOM_DURATION_MS })
+  }
+
+  const openCensusData = () => {
+    scrollToCensusRef.current = true
+    setTab('data')
+  }
 
   const generateReport = async () => {
     const map = mapRef.current
@@ -1373,6 +1717,51 @@ export default function App() {
             <section className="panel map-panel">
               <h2 className="section-title">Selected scenario</h2>
               <div className="map" ref={mapContainer} role="region" aria-label="Flood map" />
+              <MapLegend
+                kinds={KINDS.filter((kind) => visible[kind])}
+                rise={rise}
+                focus={focusName}
+                villages={villages}
+                routes={routes}
+                hasGauge={Boolean(layers.observed?.features.length)}
+                onVillageClick={openCensusData}
+              />
+              <div className="zoom-control">
+                <div className="zoom-row">
+                  <label htmlFor="map-zoom">Zoom</label>
+                  <input
+                    id="map-zoom"
+                    type="range"
+                    min={ZOOM_MIN}
+                    max={ZOOM_MAX}
+                    step={ZOOM_STEP}
+                    value={zoom}
+                    onChange={(event) => applyZoom(Number(event.target.value))}
+                  />
+                  <select
+                    aria-label="Zoom amount"
+                    value={zoom}
+                    onChange={(event) => applyZoom(Number(event.target.value))}
+                  >
+                    {ZOOM_LEVELS.map((level) => (
+                      <option key={level} value={level}>
+                        {level}×
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="zoom-reset"
+                    disabled={zoom === 1}
+                    onClick={() => applyZoom(1)}
+                  >
+                    Reset
+                  </button>
+                </div>
+                <p className="note">
+                  Centred on the rain forecast point where possible, and kept inside the study area.
+                </p>
+              </div>
 
               <h3 className="selected-name">
                 +{rise} m river rise{location && `, ${location.name} map area`}
@@ -1476,6 +1865,11 @@ export default function App() {
               </section>
             )
           })}
+          <CensusData
+            villages={villages}
+            regionName={location?.name ?? 'this'}
+            onBack={() => setTab('scenario')}
+          />
         </div>
 
         {tab === 'report' && reportInfo && selected && location && (
