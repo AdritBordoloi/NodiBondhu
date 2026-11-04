@@ -53,8 +53,8 @@ const ZOOM_LEVELS = Array.from({ length: 16 }, (_, index) => Number((1 + index *
 const ZOOM_DURATION_MS = 500
 const ROUTE_LINE_FILTER: ExpressionSpecification = ['==', ['get', 'segment'], 'route']
 const ALERT_PREVIEW_COUNT = 4
-const FLIGHT_DURATION_MS = 2400
-const FLOOD_FADE_MS = 900
+const FLIGHT_DURATION_MS = 3600
+const FLOOD_FADE_MS = 1500
 const FLOOD_OPACITY = 0.4
 // Scenarios overlap, so the land that floods first builds up to the strongest colour
 const HEAT_OPACITY = 0.65
@@ -200,13 +200,9 @@ function formatBbox([west, south, east, north]: Location['bbox']) {
   return `${south.toFixed(2)}–${north.toFixed(2)}° N, ${west.toFixed(2)}–${east.toFixed(2)}° E`
 }
 
-// Pulls back slightly before leaving, then overshoots and settles on arrival
-function kineticEasing(t: number) {
-  const overshoot = 1.68
-  const eased = 2 * t
-  return t < 0.5
-    ? (eased ** 2 * ((overshoot + 1) * eased - overshoot)) / 2
-    : ((eased - 2) ** 2 * ((overshoot + 1) * (eased - 2) + overshoot) + 2) / 2
+// Starts and stops gently, with no pull back or overshoot
+function smoothEasing(t: number) {
+  return (1 - Math.cos(Math.PI * t)) / 2
 }
 
 function formatTime(timestamp: string | number | null) {
@@ -1666,9 +1662,9 @@ export default function App() {
       // MapLibre turns this into an instant jump for people who ask for reduced motion
       map.flyTo({
         ...camera,
-        curve: 1.6,
+        curve: 1.2,
         duration: FLIGHT_DURATION_MS,
-        easing: kineticEasing,
+        easing: smoothEasing,
       })
     }
     cameraLocationRef.current = location.id
