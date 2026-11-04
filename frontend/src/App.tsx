@@ -3,7 +3,6 @@ import {
   Map as MapLibreMap,
   Marker,
   NavigationControl,
-  Popup,
   setWorkerUrl,
   type ExpressionSpecification,
   type GeoJSONSource,
@@ -44,7 +43,9 @@ const ROUTES_FLOODED = 'routes-flooded'
 const ROUTE_ENDS = 'route-ends'
 const VILLAGES = 'villages'
 const CENSUS_DOT_COLOR = '#29b6f6'
-const CENSUS_SECTION_ID = 'census-data'
+const ROAD_LAYERS = [ROUTES, ROUTES_CASING, ROUTES_FLOODED, ROUTE_ENDS]
+const ROADS_TARGET = 'roads'
+const SELECTED_SCENARIO_TARGET = 'selected-scenario'
 const ZOOM_MIN = 1
 const ZOOM_MAX = 4
 const ZOOM_STEP = 0.2
@@ -202,25 +203,6 @@ function formatArea(value: string | number | null) {
 
 function extraFields(properties: Properties) {
   return Object.entries(properties).filter(([key]) => !STANDARD_FIELDS.has(key))
-}
-
-function popupContent(properties: Properties) {
-  const root = document.createElement('div')
-  root.className = 'popup'
-  const addLine = (text: string, className?: string) => {
-    const line = document.createElement('div')
-    line.textContent = text
-    if (className) line.className = className
-    root.appendChild(line)
-  }
-  addLine(String(properties.name ?? 'Unnamed'), 'popup-title')
-  for (const [key, value] of extraFields(properties)) {
-    addLine(`${formatField(key)}: ${value ?? 'not available'}`)
-  }
-  addLine(`Time: ${formatTime(properties.timestamp)}`)
-  addLine(`Source: ${properties.source ?? 'Not stated'}`)
-  addLine(`Quality: ${properties.quality ?? 'Not stated'}`)
-  return root
 }
 
 function summariseVillages(villages: Layer | null, rise: number) {
@@ -396,13 +378,74 @@ function RoadCheck({ routes, rise }: { routes: Layer | null; rise: number }) {
   )
 }
 
+function SettlementData({
+  settlements,
+  mapTarget,
+}: {
+  settlements: Layer | null
+  mapTarget: string | null
+}) {
+  const places = [...(settlements?.features ?? [])].sort((a, b) =>
+    String(a.properties.name).localeCompare(String(b.properties.name)),
+  )
+  return (
+    <section className="panel data-panel">
+      <h2 className="section-title">
+        <span className="swatch" style={{ backgroundColor: KIND_INFO.simulated.color }} />
+        Mapped settlements
+      </h2>
+      {places.length === 0 ? (
+        <p className="empty">No data yet</p>
+      ) : (
+        <>
+          <p className="note">
+            Locations from OpenStreetMap, with the lowest scenario that reaches each one. Not
+            reached only means the model did not reach this mapped point, not that the place is
+            safe.
+          </p>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Settlement</th>
+                  <th scope="col">Type</th>
+                  <th scope="col">First flooded at</th>
+                </tr>
+              </thead>
+              <tbody>
+                {places.map((place, index) => {
+                  const name = String(place.properties.name)
+                  const level = place.properties.first_flooded_at_m
+                  return (
+                    <tr
+                      // Different places can share a name, and each gets marked when one is selected
+                      key={`${name}-${index}`}
+                      className={mapTarget === `settlement:${name}` ? 'map-target' : undefined}
+                    >
+                      <td>{name}</td>
+                      <td>{place.properties.place ?? 'Not known'}</td>
+                      <td>{typeof level === 'number' ? `+${level} m` : 'Not reached'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </section>
+  )
+}
+
 function CensusData({
   villages,
   regionName,
+  mapTarget,
   onBack,
 }: {
   villages: Layer | null
   regionName: string
+  mapTarget: string | null
   onBack: () => void
 }) {
   const withFigure = (villages?.features ?? [])
@@ -414,7 +457,7 @@ function CensusData({
   )
   const first = withFigure[0]?.properties
   return (
-    <section id={CENSUS_SECTION_ID} className="panel data-panel">
+    <section className="panel data-panel">
       <h2 className="section-title">
         <span className="swatch" style={{ backgroundColor: CENSUS_DOT_COLOR }} />
         Census villages
@@ -447,8 +490,9 @@ function CensusData({
               <tbody>
                 {withFigure.map((village) => {
                   const level = village.properties.first_flooded_at_m
+                  const key = String(village.properties.village_key)
                   return (
-                    <tr key={String(village.properties.village_key)}>
+                    <tr key={key} className={mapTarget === `village:${key}` ? 'map-target' : undefined}>
                       <td>{village.properties.name}</td>
                       <td>{village.properties.taluk ?? 'Not known'}</td>
                       <td>{formatCount(village.properties.population_2001)}</td>
@@ -485,7 +529,6 @@ function MapLegend({
   routes,
   observedFlood,
   hasGauge,
-  onVillageClick,
 }: {
   kinds: Kind[]
   rise: number
@@ -494,7 +537,6 @@ function MapLegend({
   routes: Layer | null
   observedFlood?: string
   hasGauge: boolean
-  onVillageClick?: () => void
 }) {
   const showSimulated = kinds.includes('simulated')
   const dot = (color: string, size = 8, stroke = '#ffffff') => (
@@ -507,7 +549,6 @@ function MapLegend({
     label: string
     detail: string
     show: boolean
-    onClick?: () => void
   }[] = [
     {
       key: 'pin',
@@ -548,13 +589,10 @@ function MapLegend({
       key: 'village',
       symbol: dot(CENSUS_DOT_COLOR, 7, '#16284a'),
       label: 'Village, census figure',
-      detail: onVillageClick
-        ? 'Village with flooded land and a census figure. Select to see the census data'
-        : 'Village with flooded land and a census figure',
+      detail: 'Village with flooded land and a census figure',
       show:
         showSimulated &&
         (villages?.features ?? []).some((village) => village.properties.population_2001 !== null),
-      onClick: onVillageClick,
     },
     {
       key: 'route',
@@ -598,21 +636,10 @@ function MapLegend({
         .filter((item) => item.show)
         .map((item) => (
           <li key={item.key} title={item.detail}>
-            {item.onClick ? (
-              <button type="button" className="legend-link" onClick={item.onClick}>
-                <span className="legend-swatch" aria-hidden="true">
-                  {item.symbol}
-                </span>
-                {item.label}
-              </button>
-            ) : (
-              <>
-                <span className="legend-swatch" aria-hidden="true">
-                  {item.symbol}
-                </span>
-                {item.label}
-              </>
-            )}
+            <span className="legend-swatch" aria-hidden="true">
+              {item.symbol}
+            </span>
+            {item.label}
           </li>
         ))}
     </ul>
@@ -719,10 +746,21 @@ function LocationSwitch({
   )
 }
 
-function FeatureCard({ feature, kind }: { feature: Feature; kind: Kind }) {
+function FeatureCard({
+  feature,
+  kind,
+  targeted,
+}: {
+  feature: Feature
+  kind: Kind
+  targeted: boolean
+}) {
   const { properties } = feature
   return (
-    <article className="card" style={{ borderLeftColor: KIND_INFO[kind].color }}>
+    <article
+      className={targeted ? 'card map-target' : 'card'}
+      style={{ borderLeftColor: KIND_INFO[kind].color }}
+    >
       <h3>{properties.name}</h3>
       {extraFields(properties).map(([key, value]) => (
         <p key={key}>
@@ -1069,15 +1107,14 @@ export default function App() {
   const [mapReady, setMapReady] = useState(false)
   const markerRef = useRef<Marker | null>(null)
   const cameraLocationRef = useRef<string | null>(null)
-  const popupRef = useRef<Popup | null>(null)
-  const scrollToCensusRef = useRef(false)
+  const scrollToTargetRef = useRef(false)
+  const [mapTarget, setMapTarget] = useState<string | null>(null)
   const [tab, setTab] = useState<TabId | 'report'>('scenario')
   const [reportInfo, setReportInfo] = useState<ReportInfo | null>(null)
   const [locations, setLocations] = useState<Location[]>([])
   const [locationId, setLocationId] = useState<string | null>(null)
   const locationIdRef = useRef<string | null>(null)
   const [allData, setAllData] = useState<Record<string, LocationData> | null>(null)
-  const layersRef = useRef<Layers>(EMPTY_LAYERS)
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [rise, setRise] = useState(2)
   const [zoom, setZoom] = useState(1)
@@ -1314,29 +1351,41 @@ export default function App() {
           ...SHARED_MAP_KINDS.map((kind) => `${kind}-point`),
           SETTLEMENTS,
           VILLAGES,
+          VILLAGE_LABELS,
+          ...ROAD_LAYERS,
+          'observed-area',
           floodLayerId(locationIdRef.current ?? ''),
         ].filter((id) => map.getLayer(id))
         return map.queryRenderedFeatures(point, { layers })[0]
       }
+      // Everything on the map opens its own place in Data Sources
+      const openDataAt = (target: string) => {
+        setMapTarget(target)
+        scrollToTargetRef.current = true
+        setTab('data')
+      }
       map.on('click', (event) => {
+        // The pin stands for the region, so it opens the selected scenario
+        const pin = markerRef.current?.getElement()
+        if (pin?.contains(event.originalEvent.target as Node)) {
+          openDataAt(SELECTED_SCENARIO_TARGET)
+          return
+        }
         const feature = featureAt(event.point)
         const clicked = feature?.properties as Properties | undefined
         if (!feature || !clicked) return
-        // MapLibre drops null values from clicked features, so use the original data
-        const original = KINDS.flatMap((kind) => layersRef.current[kind]?.features ?? []).find(
-          (feature) => feature.properties.name === clicked.name,
-        )
-        popupRef.current?.remove()
-        popupRef.current = new Popup()
-          .setLngLat(event.lngLat)
-          .setDOMContent(
-            popupContent(
-              feature.layer.id === VILLAGES
-                ? { taluk: null, population_2001: null, households_2001: null, ...clicked }
-                : (original?.properties ?? clicked),
-            ),
-          )
-          .addTo(map)
+        const layerId = feature.layer.id
+        if (layerId === VILLAGES || layerId === VILLAGE_LABELS) {
+          openDataAt(`village:${clicked.village_key}`)
+        } else if (layerId === SETTLEMENTS) {
+          openDataAt(`settlement:${clicked.name}`)
+        } else if (ROAD_LAYERS.includes(layerId)) {
+          openDataAt(ROADS_TARGET)
+        } else if (layerId === floodLayerId(locationIdRef.current ?? '')) {
+          openDataAt(SELECTED_SCENARIO_TARGET)
+        } else {
+          openDataAt(`feature:${clicked.name}`)
+        }
       })
       map.on('mousemove', (event) => {
         map.getCanvas().style.cursor = featureAt(event.point) ? 'pointer' : ''
@@ -1355,11 +1404,15 @@ export default function App() {
 
   // The map has no size while its tab is hidden, so measure again on return
   useEffect(() => {
-    if (tab === 'scenario') mapRef.current?.resize()
-    // The data tab is only visible once this runs, so the section can be scrolled to now
-    if (tab === 'data' && scrollToCensusRef.current) {
-      scrollToCensusRef.current = false
-      document.getElementById(CENSUS_SECTION_ID)?.scrollIntoView({ block: 'start' })
+    if (tab === 'scenario') {
+      mapRef.current?.resize()
+      // Coming back from a row far down Data Sources should show the map again
+      document.querySelector('main.content')?.scrollTo(0, 0)
+    }
+    // The data tab is only visible once this runs, so its target can be scrolled to now
+    if (tab === 'data' && scrollToTargetRef.current) {
+      scrollToTargetRef.current = false
+      document.querySelector('.map-target')?.scrollIntoView({ block: 'center' })
     }
   }, [tab])
 
@@ -1450,7 +1503,6 @@ export default function App() {
   // Runs only when the location changes, so moving the slider never re-sends map data
   useEffect(() => {
     locationIdRef.current = locationId
-    layersRef.current = layers
     const map = mapRef.current
     if (!map || !mapReady || !location) return
     for (const kind of SHARED_MAP_KINDS) {
@@ -1480,8 +1532,6 @@ export default function App() {
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapReady) return
-    // An open popup would describe a scenario that is no longer on the map
-    popupRef.current?.remove()
     for (const kind of SHARED_MAP_KINDS) {
       const visibility = visible[kind] ? 'visible' : 'none'
       map.setLayoutProperty(`${kind}-area`, 'visibility', visibility)
@@ -1535,9 +1585,7 @@ export default function App() {
     markerRef.current ??= new Marker({ color: '#16284a' })
       .setLngLat(location.coordinates)
       .addTo(map)
-    markerRef.current
-      .setLngLat(location.coordinates)
-      .setPopup(new Popup().setText(`${location.focus} location`))
+    markerRef.current.setLngLat(location.coordinates)
     // A hidden map has no size to fit, so it moves when its tab comes back
     if (cameraLocationRef.current === location.id || tab !== 'scenario') return
     // A new region starts at its full view
@@ -1606,11 +1654,6 @@ export default function App() {
       { padding: 24 },
     )
     if (camera) map.easeTo({ ...camera, duration: ZOOM_DURATION_MS })
-  }
-
-  const openCensusData = () => {
-    scrollToCensusRef.current = true
-    setTab('data')
   }
 
   const generateReport = async () => {
@@ -1842,7 +1885,6 @@ export default function App() {
                 routes={routes}
                 observedFlood={observedFloodName}
                 hasGauge={Boolean(gauge?.level_m != null)}
-                onVillageClick={openCensusData}
               />
               <div className="zoom-control">
                 <div className="zoom-row">
@@ -1981,14 +2023,35 @@ export default function App() {
                 <p className="note">{info.help}</p>
                 {features.length === 0 && !error && <p className="empty">No data yet</p>}
                 {features.map((feature, index) => (
-                  <FeatureCard key={index} feature={feature} kind={kind} />
+                  <FeatureCard
+                    key={index}
+                    feature={feature}
+                    kind={kind}
+                    targeted={
+                      mapTarget === `feature:${feature.properties.name}` ||
+                      (kind === 'simulated' && mapTarget === SELECTED_SCENARIO_TARGET)
+                    }
+                  />
                 ))}
               </section>
             )
           })}
+          <SettlementData settlements={settlements} mapTarget={mapTarget} />
+          <section
+            className={
+              mapTarget === ROADS_TARGET ? 'panel data-panel map-target' : 'panel data-panel'
+            }
+          >
+            <h2 className="section-title">
+              <span className="swatch" style={{ backgroundColor: '#e53935' }} />
+              Road routes at +{rise} m
+            </h2>
+            <RoadCheck routes={routes} rise={rise} />
+          </section>
           <CensusData
             villages={villages}
             regionName={location?.name ?? 'this'}
+            mapTarget={mapTarget}
             onBack={() => setTab('scenario')}
           />
         </div>
