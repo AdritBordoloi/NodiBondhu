@@ -310,10 +310,6 @@ h1:has(+ .subtitle) {
   cursor: default;
 }
 
-.zoom-control .note {
-  margin: 0;
-}
-
 /* Two columns */
 .columns {
   display: grid;
@@ -756,11 +752,24 @@ input:focus-visible {
 @media (min-width: 1001px) {
   .columns {
     grid-template-columns: 400px minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  /* The map takes up whatever height the control panel sets */
+  .map-panel {
+    display: flex;
+    flex-direction: column;
   }
 
   .map {
-    height: 560px;
+    flex: 1 1 420px;
+    height: auto;
+    min-height: 420px;
   }
+}
+
+.scenario-details {
+  grid-column: 1 / -1;
 }
 
 /* Soft sliding controls */

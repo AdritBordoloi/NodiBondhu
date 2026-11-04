@@ -52,7 +52,7 @@ const ZOOM_STEP = 0.2
 const ZOOM_LEVELS = Array.from({ length: 16 }, (_, index) => Number((1 + index * ZOOM_STEP).toFixed(1)))
 const ZOOM_DURATION_MS = 500
 const ROUTE_LINE_FILTER: ExpressionSpecification = ['==', ['get', 'segment'], 'route']
-const ALERT_PREVIEW_COUNT = 8
+const ALERT_PREVIEW_COUNT = 4
 const FLIGHT_DURATION_MS = 2400
 const FLOOD_FADE_MS = 900
 const FLOOD_OPACITY = 0.4
@@ -1864,9 +1864,7 @@ export default function App() {
               )}
               {latestAlert && (
                 <p className="note">
-                  Last logged {formatTime(latestAlert.created_at)}:{' '}
-                  {latestAlert.location_name ?? 'Location not recorded'}, +{latestAlert.rise_m} m,{' '}
-                  {latestAlert.settlements.length} settlements.{' '}
+                  Last logged {formatTime(latestAlert.created_at)}.{' '}
                   <button type="button" className="link" onClick={() => setTab('alerts')}>
                     View alert log
                   </button>
@@ -1918,11 +1916,10 @@ export default function App() {
                     Reset
                   </button>
                 </div>
-                <p className="note">
-                  Centred on the rain forecast point where possible, and kept inside the study area.
-                </p>
               </div>
+            </section>
 
+            <section className="panel scenario-details">
               <h3 className="selected-name">
                 +{rise} m river rise{location && `, ${location.name} map area`}
               </h3>
