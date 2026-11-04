@@ -14,7 +14,7 @@
         "kind": "forecast",
         "name": "River flow forecast near Karimganj",
         "source": "GloFAS river discharge (Copernicus Emergency Management Service) via Open-Meteo.com",
-        "timestamp": "2026-11-04T21:38+05:30",
+        "timestamp": "2026-11-05T00:55+05:30",
         "quality": "Global model at about 5 km, not a gauge reading. Its river cell may not match the local channel exactly, so use it to compare with the 2026 monsoon peak, not as a measured flow",
         "flow_today_m3s": 906.8,
         "flow_peak_next_7d_m3s": 906.8,

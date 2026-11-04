@@ -14,10 +14,11 @@
         "kind": "forecast",
         "name": "Rain forecast near Simaluguri",
         "source": "Weather data by Open-Meteo.com",
-        "timestamp": "2026-11-04T16:54+05:30",
+        "timestamp": "2026-11-05T00:55+05:30",
         "quality": "Global model forecast, not checked against local gauges",
         "rain_next_24h_mm": 0.0,
-        "rain_next_72h_mm": 0.0
+        "rain_next_72h_mm": 0.0,
+        "rain_past_7d_mm": 31.4
       }
     }
   ]
