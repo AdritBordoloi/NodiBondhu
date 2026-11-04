@@ -13,7 +13,7 @@ Step-by-step instructions for each person are in `TEAM_STEPS.md`.
 | Observed layer | Sentinel-1 radar flood for July 2026 (Simaluguri 54.4, Sivasagar 177.9, Karimganj 42.5 km2). Past reported river levels: Dikhow at Sivasagar 94.26 m on 24 July 2026, Kushiyara at Karimganj 15.22 m on 22 July 2026. **No live gauge.** Radar covers 65% of Sivasagar, and Karimganj may include rice fields and wetlands |
 | Forecast layer | Rain forecast, past 7 days of rain and GloFAS river flow from Open-Meteo, with saved copies for the demo |
 | Simulated layer | HAND model for +1 to +6 m, recalibrated using low river levels. Closest to radar at +2 m, with 22-31% overlap, so **only a partial match**. +6 m still covers about 50-65% of the areas. It ignores embankments |
-| Villages | 2001 census for Simaluguri and Karimganj, many with no figure. Sivasagar census lookup is incomplete, so it shows Not available |
+| Villages | 2001 census for all three regions, many with no figure. Sivasagar was looked up on a wider grid of about 2 km, so it may miss some villages |
 | Road check      | Main routes in each study region from Bhuvan's Shortest Path API, measured against the flood map. Saved by `scripts/fetch_routes.py`. Shows risk only, not closed roads or recommended routes                                     |
 | Next priority | Test the report, deploy the website, finish the proposal and record the demo video |
 | Proposal        | Waiting on Person 3: 12-section document                                                                                                                                                                                         |
