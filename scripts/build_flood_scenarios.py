@@ -19,6 +19,7 @@ from rasterio.transform import rowcol
 from rasterio.windows import Window
 from rasterio.windows import transform as window_transform
 from scipy import ndimage
+from shapely import set_precision
 from shapely.geometry import LineString, MultiPolygon, mapping, shape
 from shapely.ops import polygonize, unary_union
 
@@ -33,6 +34,7 @@ CELL_DEGREES = 1 / 1200  # 3 arc-seconds, about 90 m
 RISES_M = (1, 2, 3, 4, 5, 6)
 MIN_POLYGON_KM2 = 0.05
 SIMPLIFY_DEGREES = 0.0004
+COORDINATE_DEGREES = 0.00001  # about 1 m, far finer than the 90 m grid
 
 DEM_SOURCE = "Copernicus DEM GLO-30"
 RIVER_SOURCE = "OpenStreetMap contributors"
@@ -95,8 +97,6 @@ def main() -> None:
 
     first_flooded = np.full(dem.shape, np.nan)
     timestamp = datetime.now(timezone(timedelta(hours=5, minutes=30))).isoformat(timespec="minutes")
-    SIMULATED_DIR.mkdir(parents=True, exist_ok=True)
-    REFERENCE_DIR.mkdir(parents=True, exist_ok=True)
 
     masks = {}
     for rise in RISES_M:
@@ -116,6 +116,9 @@ def main() -> None:
 def write_location(location, masks, first_flooded, elements, transform, cell_km2, timestamp) -> None:
     """Cut one location out of the full grid and write its scenario and settlement files."""
     west, south, east, north = location["bbox"]
+    # Python slices wrap on negative indexes, which would silently give wrong numbers
+    if not (WEST <= west < east <= EAST and SOUTH <= south < north <= NORTH):
+        raise ValueError(f"{location['id']} bbox {location['bbox']} is outside the model grid")
     col_start = round((west - transform.c) / transform.a)
     col_end = round((east - transform.c) / transform.a)
     row_start = round((north - transform.f) / transform.e)
@@ -128,7 +131,7 @@ def write_location(location, masks, first_flooded, elements, transform, cell_km2
     simulated_dir.mkdir(parents=True, exist_ok=True)
     reference_dir.mkdir(parents=True, exist_ok=True)
 
-    lat_mid = math.radians((SOUTH + NORTH) / 2)
+    min_degrees2 = MIN_POLYGON_KM2 / (111.32**2 * math.cos(math.radians((SOUTH + NORTH) / 2)))
     settlements = []
     for element in elements:
         if element["type"] != "node":
@@ -167,13 +170,19 @@ def write_location(location, masks, first_flooded, elements, transform, cell_km2
             )
             if value == 1
         ]
-        min_degrees2 = MIN_POLYGON_KM2 / (111.32**2 * math.cos(lat_mid))
         polygons = [polygon for polygon in polygons if polygon.area >= min_degrees2]
-        merged = unary_union(polygons).simplify(SIMPLIFY_DEGREES).buffer(0)
+        merged = set_precision(
+            unary_union(polygons).simplify(SIMPLIFY_DEGREES).buffer(0), COORDINATE_DEGREES
+        )
         if merged.is_empty:
             merged = MultiPolygon()
         elif merged.geom_type == "Polygon":
             merged = MultiPolygon([merged])
+        elif merged.geom_type != "MultiPolygon":
+            # Rounding can leave stray lines, which a flood area does not need
+            merged = MultiPolygon(
+                [part for part in merged.geoms if part.geom_type == "Polygon"]
+            )
         affected = sum(
             1
             for settlement in settlements

@@ -39,7 +39,11 @@ def download() -> list[dict]:
                 timeout=180,
             )
             response.raise_for_status()
-            return response.json()["elements"]
+            result = response.json()
+            # A timed-out query still answers 200, with partial data and a remark
+            if "remark" in result:
+                raise ValueError(f"Partial result: {result['remark']}")
+            return result["elements"]
         except (httpx.HTTPError, ValueError, KeyError) as error:
             print(f"{server} failed: {error}")
             last_error = error
@@ -48,6 +52,7 @@ def download() -> list[dict]:
 
 def main() -> None:
     elements = download()
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
     (RAW_DIR / "osm.json").write_text(json.dumps(elements), encoding="utf-8")
     counts: dict[str, int] = {}
     for element in elements:

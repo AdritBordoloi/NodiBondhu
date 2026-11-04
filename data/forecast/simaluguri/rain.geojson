@@ -6,15 +6,15 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          94.756,
-          26.92
+          94.7556049,
+          26.9202285
         ]
       },
       "properties": {
         "kind": "forecast",
         "name": "Rain forecast near Simaluguri",
         "source": "Weather data by Open-Meteo.com",
-        "timestamp": "2026-11-04T16:21+05:30",
+        "timestamp": "2026-11-04T16:54+05:30",
         "quality": "Global model forecast, not checked against local gauges",
         "rain_next_24h_mm": 0.0,
         "rain_next_72h_mm": 0.0

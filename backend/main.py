@@ -1,10 +1,15 @@
 """NodiBondhu API: serves observed, forecast and simulated layers as GeoJSON."""
+import gzip
 import json
+import os
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, Response
+from fastapi.concurrency import run_in_threadpool
+from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -15,9 +20,15 @@ ALERTS_FILE = DATA_DIR / "runtime" / "alerts.json"
 
 IST = timezone(timedelta(hours=5, minutes=30))
 RAIN_MAX_AGE = timedelta(minutes=30)
+RAIN_TIMEOUT_SECONDS = 8
 RAIN_SOURCE = "Weather data by Open-Meteo.com"
 
 app = FastAPI(title="NodiBondhu API")
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+alerts_lock = threading.Lock()
+layer_cache: dict[tuple[str, str], tuple[tuple, tuple[bytes, bytes]]] = {}
+rain_refreshing: set[str] = set()
 
 
 def get_location(location_id: str) -> dict:
@@ -27,11 +38,28 @@ def get_location(location_id: str) -> dict:
     return location
 
 
-def read_layer(kind: str, location_id: str) -> dict:
+def write_json(path: Path, data: object) -> None:
+    """Write through a temporary file so a reader never sees half a file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f"{path.name}.{threading.get_ident()}.tmp")
+    temporary.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    os.replace(temporary, path)
+
+
+def read_layer(kind: str, location_id: str) -> tuple[bytes, bytes]:
+    """Merge and compress a layer once, then reuse it until one of its files changes."""
+    paths = sorted((DATA_DIR / kind / location_id).glob("*.geojson"))
+    version = tuple((path.name, path.stat().st_mtime_ns) for path in paths)
+    cached = layer_cache.get((kind, location_id))
+    if cached and cached[0] == version:
+        return cached[1]
     features = []
-    for path in sorted((DATA_DIR / kind / location_id).glob("*.geojson")):
+    for path in paths:
         features += json.loads(path.read_text(encoding="utf-8"))["features"]
-    return {"type": "FeatureCollection", "features": features}
+    content = json.dumps({"type": "FeatureCollection", "features": features}).encode("utf-8")
+    versions = (content, gzip.compress(content))
+    layer_cache[(kind, location_id)] = (version, versions)
+    return versions
 
 
 def read_settlements(location_id: str) -> dict:
@@ -41,7 +69,7 @@ def read_settlements(location_id: str) -> dict:
 
 async def fetch_rain_forecast(location: dict) -> dict:
     lon, lat = location["coordinates"]
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with httpx.AsyncClient(timeout=RAIN_TIMEOUT_SECONDS) as client:
         response = await client.get(
             "https://api.open-meteo.com/v1/forecast",
             params={
@@ -86,19 +114,32 @@ async def fetch_rain_forecast(location: dict) -> dict:
     }
 
 
+def rain_file(location: dict) -> Path:
+    return DATA_DIR / "forecast" / location["id"] / "rain.geojson"
+
+
+def rain_is_fresh(location: dict) -> bool:
+    """Use the forecast's own time, because cloning a repo resets file times."""
+    try:
+        layer = json.loads(rain_file(location).read_text(encoding="utf-8"))
+        issued = datetime.fromisoformat(layer["features"][0]["properties"]["timestamp"])
+    except (OSError, ValueError, KeyError, IndexError):
+        return False
+    return datetime.now(IST) - issued < RAIN_MAX_AGE
+
+
 async def refresh_rain_forecast(location: dict) -> None:
     """Keep a saved copy so the demo still works if the service or internet fails."""
-    rain_file = DATA_DIR / "forecast" / location["id"] / "rain.geojson"
-    if rain_file.exists():
-        age = datetime.now(timezone.utc).timestamp() - rain_file.stat().st_mtime
-        if age < RAIN_MAX_AGE.total_seconds():
-            return
+    if location["id"] in rain_refreshing:
+        return
+    rain_refreshing.add(location["id"])
     try:
         layer = await fetch_rain_forecast(location)
-    except (httpx.HTTPError, KeyError, ValueError):
+        write_json(rain_file(location), layer)
+    except (httpx.HTTPError, KeyError, ValueError, OSError):
         return
-    rain_file.parent.mkdir(parents=True, exist_ok=True)
-    rain_file.write_text(json.dumps(layer, indent=2), encoding="utf-8")
+    finally:
+        rain_refreshing.discard(location["id"])
 
 
 @app.get("/api/health")
@@ -112,13 +153,24 @@ def get_locations() -> list[dict]:
 
 
 @app.get("/api/locations/{location_id}/layers/{kind}")
-async def get_layer(location_id: str, kind: str) -> dict:
+async def get_layer(
+    location_id: str, kind: str, request: Request, background_tasks: BackgroundTasks
+) -> Response:
     location = get_location(location_id)
     if kind not in KINDS:
         raise HTTPException(status_code=404, detail=f"Unknown layer: {kind}")
     if kind == "forecast":
-        await refresh_rain_forecast(location)
-    return read_layer(kind, location_id)
+        if not rain_file(location).exists():
+            await refresh_rain_forecast(location)
+        elif not rain_is_fresh(location):
+            # Answer now with the saved forecast and its time, then update it for the next visit
+            background_tasks.add_task(refresh_rain_forecast, location)
+    content, compressed = await run_in_threadpool(read_layer, kind, location_id)
+    headers = {"Vary": "Accept-Encoding"}
+    if "gzip" in request.headers.get("accept-encoding", ""):
+        headers["Content-Encoding"] = "gzip"
+        content = compressed
+    return Response(content=content, media_type="application/json", headers=headers)
 
 
 @app.get("/api/locations/{location_id}/settlements")
@@ -147,6 +199,9 @@ def get_alerts() -> list[dict]:
 def create_alert(request: AlertRequest) -> dict:
     """Log an officer-approved demo alert. No message leaves the system."""
     location = get_location(request.location)
+    scenario = DATA_DIR / "simulated" / location["id"] / f"flood_plus_{request.rise_m}m.geojson"
+    if not scenario.exists():
+        raise HTTPException(status_code=400, detail=f"No scenario for +{request.rise_m} m")
     affected = sorted(
         feature["properties"]["name"]
         for feature in read_settlements(location["id"])["features"]
@@ -155,18 +210,18 @@ def create_alert(request: AlertRequest) -> dict:
     )
     if not affected:
         raise HTTPException(status_code=400, detail="No settlements are affected in this scenario")
-    alerts = read_alerts()
-    alert = {
-        "id": len(alerts) + 1,
-        "created_at": datetime.now(IST).isoformat(timespec="seconds"),
-        "location": location["id"],
-        "location_name": location["name"],
-        "rise_m": request.rise_m,
-        "settlements": affected,
-        "kind": "simulated",
-        "channel": "Demo log only, not sent to anyone",
-    }
-    alerts.insert(0, alert)
-    ALERTS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    ALERTS_FILE.write_text(json.dumps(alerts, indent=2), encoding="utf-8")
+    with alerts_lock:
+        alerts = read_alerts()
+        alert = {
+            "id": len(alerts) + 1,
+            "created_at": datetime.now(IST).isoformat(timespec="seconds"),
+            "location": location["id"],
+            "location_name": location["name"],
+            "rise_m": request.rise_m,
+            "settlements": affected,
+            "kind": "simulated",
+            "channel": "Demo log only, not sent to anyone",
+        }
+        alerts.insert(0, alert)
+        write_json(ALERTS_FILE, alerts)
     return alert

@@ -7,6 +7,7 @@ import {
   setWorkerUrl,
   type ExpressionSpecification,
   type GeoJSONSource,
+  type PointLike,
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
@@ -111,7 +112,7 @@ function formatField(key: string) {
 }
 
 function formatArea(value: string | number | null) {
-  return `${Number(value).toLocaleString('en-IN')} km²`
+  return value === null ? 'No data' : `${Number(value).toLocaleString('en-IN')} km²`
 }
 
 function extraFields(properties: Properties) {
@@ -137,28 +138,15 @@ function popupContent(properties: Properties) {
   return root
 }
 
-function addInteraction(
-  map: MapLibreMap,
-  layerId: string,
-  findOriginal: (clicked: Properties) => Properties | undefined,
-  isActive: () => boolean = () => true,
-) {
-  map.on('click', layerId, (event) => {
-    if (!isActive()) return
-    // MapLibre drops null values from clicked features, so use the original data
-    const clicked = event.features?.[0]?.properties as Properties | undefined
-    if (!clicked) return
-    new Popup()
-      .setLngLat(event.lngLat)
-      .setDOMContent(popupContent(findOriginal(clicked) ?? clicked))
-      .addTo(map)
-  })
-  map.on('mouseenter', layerId, () => {
-    if (isActive()) map.getCanvas().style.cursor = 'pointer'
-  })
-  map.on('mouseleave', layerId, () => {
-    map.getCanvas().style.cursor = ''
-  })
+function findFocusLevel(settlements: Layer | null, focus: string) {
+  const place = settlements?.features.find((feature) => feature.properties.name === focus)
+  return place ? (place.properties.first_flooded_at_m as number | null) : undefined
+}
+
+// A place missing from the data must never read as safe
+function focusStatus(level: number | null | undefined, rise: number) {
+  if (level === undefined) return 'Not in mapped data'
+  return level !== null && level <= rise ? 'Flooded' : 'Not flooded'
 }
 
 function LocationSwitch({
@@ -319,9 +307,7 @@ function SituationReport({
   onBack: () => void
 }) {
   const places = settlements?.features ?? []
-  const focusLevel = places.find((place) => place.properties.name === location.focus)?.properties
-    .first_flooded_at_m
-  const focusFlooded = focusLevel != null && Number(focusLevel) <= rise
+  const focusLevel = findFocusLevel(settlements, location.focus)
   const affectedCount = places.filter(
     (place) =>
       place.properties.first_flooded_at_m != null &&
@@ -391,9 +377,12 @@ function SituationReport({
         If rivers stood {rise} m above the water surface in the terrain data, the model estimates
         about {formatArea(selected.properties.flooded_area_km2)} of flooded land in the{' '}
         {location.name} map area, reaching {affectedCount} of {places.length} settlements mapped in
-        OpenStreetMap. {location.focus} is {focusFlooded ? 'flooded' : 'not flooded'} in this
-        scenario
-        {focusLevel != null && `; the model floods it from +${focusLevel} m`}.
+        OpenStreetMap.{' '}
+        {focusLevel === undefined
+          ? `${location.focus} is not in the mapped settlement data.`
+          : `${location.focus} is ${focusStatus(focusLevel, rise).toLowerCase()} in this scenario${
+              focusLevel === null ? '' : `; the model floods it from +${focusLevel} m`
+            }.`}
       </p>
       <p className="report-text">
         This report gives no evacuation or response advice, because the model has not yet been
@@ -500,6 +489,7 @@ export default function App() {
   const [mapReady, setMapReady] = useState(false)
   const markerRef = useRef<Marker | null>(null)
   const cameraLocationRef = useRef<string | null>(null)
+  const popupRef = useRef<Popup | null>(null)
   const [tab, setTab] = useState<TabId | 'report'>('scenario')
   const [reportInfo, setReportInfo] = useState<ReportInfo | null>(null)
   const [locations, setLocations] = useState<Location[]>([])
@@ -577,7 +567,6 @@ export default function App() {
           'circle-stroke-width': 1.5,
         },
       })
-      addInteraction(map, SETTLEMENTS, () => undefined)
       for (const kind of SHARED_MAP_KINDS) {
         const { color } = KIND_INFO[kind]
         map.addLayer({
@@ -592,15 +581,33 @@ export default function App() {
             'circle-stroke-width': 2,
           },
         })
-        addInteraction(
-          map,
-          `${kind}-point`,
-          (clicked) =>
-            layersRef.current[kind]?.features.find(
-              (feature) => feature.properties.name === clicked.name,
-            )?.properties,
-        )
       }
+
+      // Only the topmost feature responds, and hidden flood layers never do
+      const featureAt = (point: PointLike) => {
+        const layers = [
+          ...SHARED_MAP_KINDS.map((kind) => `${kind}-point`),
+          SETTLEMENTS,
+          floodLayerId(locationIdRef.current ?? ''),
+        ].filter((id) => map.getLayer(id))
+        return map.queryRenderedFeatures(point, { layers })[0]
+      }
+      map.on('click', (event) => {
+        const clicked = featureAt(event.point)?.properties as Properties | undefined
+        if (!clicked) return
+        // MapLibre drops null values from clicked features, so use the original data
+        const original = KINDS.flatMap((kind) => layersRef.current[kind]?.features ?? []).find(
+          (feature) => feature.properties.name === clicked.name,
+        )
+        popupRef.current?.remove()
+        popupRef.current = new Popup()
+          .setLngLat(event.lngLat)
+          .setDOMContent(popupContent(original?.properties ?? clicked))
+          .addTo(map)
+      })
+      map.on('mousemove', (event) => {
+        map.getCanvas().style.cursor = featureAt(event.point) ? 'pointer' : ''
+      })
       setMapReady(true)
     })
     mapRef.current = map
@@ -619,9 +626,12 @@ export default function App() {
   }, [tab])
 
   useEffect(() => {
-    let cancelled = false
+    const controller = new AbortController()
+    const { signal } = controller
+    const messageFor = (reason: unknown) =>
+      reason instanceof Error ? reason.message : String(reason)
     const getJson = async <T,>(url: string) => {
-      const response = await fetch(url)
+      const response = await fetch(url, { signal })
       if (!response.ok) throw new Error(`${url} failed with status ${response.status}`)
       return (await response.json()) as T
     }
@@ -638,23 +648,25 @@ export default function App() {
       return { layers: Object.fromEntries(layerResults) as Layers, settlements: settlementLayer }
     }
     // Load every location up front, so switching never waits on the network
-    Promise.all([getJson<Location[]>('/api/locations'), getJson<Alert[]>('/api/alerts')])
-      .then(async ([locationList, alertLog]) => {
+    getJson<Location[]>('/api/locations')
+      .then(async (locationList) => {
         const entries = await Promise.all(
           locationList.map(async (item) => [item.id, await getLocationData(item.id)] as const),
         )
-        if (cancelled) return
         setLocations(locationList)
         setAllData(Object.fromEntries(entries))
         setLocationId(locationList[0]?.id ?? null)
-        setAlerts(alertLog)
       })
       .catch((reason: unknown) => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason))
+        if (!signal.aborted) setError(messageFor(reason))
       })
-    return () => {
-      cancelled = true
-    }
+    // The alert log is loaded separately, so a problem with it leaves the flood map working
+    getJson<Alert[]>('/api/alerts')
+      .then(setAlerts)
+      .catch((reason: unknown) => {
+        if (!signal.aborted) setAlertError(`Could not load the alert log: ${messageFor(reason)}`)
+      })
+    return () => controller.abort()
   }, [])
 
   useEffect(() => {
@@ -679,16 +691,10 @@ export default function App() {
         },
         PILOT_AREA,
       )
-      addInteraction(
-        map,
-        layerId,
-        (clicked) =>
-          flood.features.find((feature) => feature.properties.name === clicked.name)?.properties,
-        () => locationIdRef.current === id,
-      )
     }
   }, [locations, allData, mapReady])
 
+  // Runs only when the location changes, so moving the slider never re-sends map data
   useEffect(() => {
     locationIdRef.current = locationId
     layersRef.current = layers
@@ -697,24 +703,8 @@ export default function App() {
     for (const kind of SHARED_MAP_KINDS) {
       const layer = layers[kind]
       if (layer) (map.getSource(kind) as GeoJSONSource).setData(layer)
-      const visibility = visible[kind] ? 'visible' : 'none'
-      map.setLayoutProperty(`${kind}-area`, 'visibility', visibility)
-      map.setLayoutProperty(`${kind}-point`, 'visibility', visibility)
-    }
-    for (const { id } of locations) {
-      const layerId = floodLayerId(id)
-      if (!map.getLayer(layerId)) continue
-      map.setLayoutProperty(layerId, 'visibility', visible.simulated ? 'visible' : 'none')
-      map.setFilter(layerId, ['all', POLYGON_FILTER, ['==', ['get', 'rise_m'], rise]])
-      map.setPaintProperty(layerId, 'fill-opacity', id === locationId ? FLOOD_OPACITY : 0)
     }
     if (settlements) (map.getSource(SETTLEMENTS) as GeoJSONSource).setData(settlements)
-    map.setLayoutProperty(SETTLEMENTS, 'visibility', visible.simulated ? 'visible' : 'none')
-    map.setFilter(SETTLEMENTS, [
-      'all',
-      ['has', 'first_flooded_at_m'],
-      ['<=', ['to-number', ['get', 'first_flooded_at_m']], rise],
-    ])
     const [west, south, east, north] = location.bbox
     ;(map.getSource(PILOT_AREA) as GeoJSONSource).setData({
       type: 'Feature',
@@ -730,7 +720,35 @@ export default function App() {
         ],
       },
     })
-  }, [location, locations, locationId, layers, settlements, visible, rise, mapReady, allData])
+  }, [location, locationId, layers, settlements, mapReady])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady) return
+    // An open popup would describe a scenario that is no longer on the map
+    popupRef.current?.remove()
+    for (const kind of SHARED_MAP_KINDS) {
+      const visibility = visible[kind] ? 'visible' : 'none'
+      map.setLayoutProperty(`${kind}-area`, 'visibility', visibility)
+      map.setLayoutProperty(`${kind}-point`, 'visibility', visibility)
+    }
+    const simulatedVisibility = visible.simulated ? 'visible' : 'none'
+    for (const { id } of locations) {
+      const layerId = floodLayerId(id)
+      if (!map.getLayer(layerId)) continue
+      map.setLayoutProperty(layerId, 'visibility', simulatedVisibility)
+      map.setFilter(layerId, ['all', POLYGON_FILTER, ['==', ['get', 'rise_m'], rise]])
+      map.setPaintProperty(layerId, 'fill-opacity', id === locationId ? FLOOD_OPACITY : 0)
+    }
+    map.setLayoutProperty(SETTLEMENTS, 'visibility', simulatedVisibility)
+    // A null level means the model never floods the place, and to-number would turn it into 0
+    map.setFilter(SETTLEMENTS, [
+      'case',
+      ['==', ['typeof', ['get', 'first_flooded_at_m']], 'number'],
+      ['<=', ['to-number', ['get', 'first_flooded_at_m']], rise],
+      false,
+    ])
+  }, [locations, locationId, visible, rise, mapReady, allData])
 
   useEffect(() => {
     const map = mapRef.current
@@ -778,15 +796,13 @@ export default function App() {
     })
     .map((settlement) => String(settlement.properties.name))
     .sort()
-  const pilotLevel = settlements?.features.find(
-    (settlement) => settlement.properties.name === focusName,
-  )?.properties.first_flooded_at_m
-  const pilotFloodedAt = (level: number) => pilotLevel != null && Number(pilotLevel) <= level
+  const pilotLevel = findFocusLevel(settlements, focusName)
   const gauge = layers.observed?.features[0]?.properties
   const rain = layers.forecast?.features[0]?.properties
-  const pilotStatus = settlements ? (pilotFloodedAt(rise) ? 'Flooded' : 'Not flooded') : 'No data'
+  const pilotStatus = settlements ? focusStatus(pilotLevel, rise) : 'No data'
   const pilotDetail = pilotLevel != null ? `Model floods it from +${pilotLevel} m` : undefined
   const latestAlert = alerts[0]
+  const loading = !allData && !error
 
   const generateReport = async () => {
     const map = mapRef.current
@@ -812,7 +828,8 @@ export default function App() {
       const alert = (await response.json()) as Alert
       setAlerts((current) => [alert, ...current])
     } catch (reason) {
-      setAlertError(reason instanceof Error ? reason.message : String(reason))
+      const message = reason instanceof Error ? reason.message : String(reason)
+      setAlertError(`Could not log the alert: ${message}`)
     } finally {
       setSendingAlert(false)
     }
@@ -836,9 +853,11 @@ export default function App() {
           ))}
         </nav>
         <span className="badge">Prototype</span>
-        <span className="context">
-          {location?.name} · +{rise} m simulated scenario
-        </span>
+        {location && (
+          <span className="context">
+            {location.name} · +{rise} m simulated scenario
+          </span>
+        )}
         {riseValues.length > 0 && tab !== 'report' && (
           <div className="topbar-actions">
             <select
@@ -869,7 +888,9 @@ export default function App() {
 
       <main className="content">
         <h1>{TABS.find(({ id }) => id === tab)?.label ?? 'Flood Situation Report'}</h1>
-        <p className="subtitle">{location?.label}. Prototype, not for operational use.</p>
+        <p className="subtitle">
+          {location && `${location.label}. `}Prototype, not for operational use.
+        </p>
         {error && (
           <p className="error" role="alert">
             Could not load data: {error}
@@ -899,14 +920,14 @@ export default function App() {
                     <span>{formatArea(scenario.properties.flooded_area_km2)} flooded</span>
                     <span>{scenario.properties.settlements_affected} mapped settlements</span>
                     <span>
-                      {focusName} {pilotFloodedAt(level) ? 'flooded' : 'not flooded'}
+                      {focusName} {focusStatus(pilotLevel, level).toLowerCase()}
                     </span>
                   </button>
                 )
               })}
             </div>
           ) : (
-            <p className="empty">No scenarios yet</p>
+            <p className="empty">{loading ? 'Loading flood data...' : 'No scenarios yet'}</p>
           )}
 
           <div className="columns">
@@ -990,7 +1011,7 @@ export default function App() {
               )}
               {alertError && (
                 <p className="error" role="alert">
-                  Could not log the alert: {alertError}
+                  {alertError}
                 </p>
               )}
               {latestAlert && (
@@ -1010,7 +1031,7 @@ export default function App() {
               <div className="map" ref={mapContainer} role="region" aria-label="Flood map" />
 
               <h3 className="selected-name">
-                +{rise} m river rise, {location?.name} map area
+                +{rise} m river rise{location && `, ${location.name} map area`}
               </h3>
               <dl className="details">
                 <dt>Bounding box</dt>
@@ -1076,7 +1097,9 @@ export default function App() {
                 </table>
               </div>
             ) : (
-              <p className="empty">No alerts logged yet. Approve one under Scenario Analysis.</p>
+              <p className="empty">
+                {alertError ?? 'No alerts logged yet. Approve one under Scenario Analysis.'}
+              </p>
             )}
           </section>
         </div>
