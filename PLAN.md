@@ -8,8 +8,8 @@ Step-by-step instructions for each person are in `TEAM_STEPS.md`.
 |---|---|
 | Challenge | Confirmed: NESFIC-D-18 |
 | Pilot area | **Simaluguri, Sivasagar district, Assam**, on the Dikhow river |
-| Plan | On the `setup/plan-and-app` branch on GitHub, not yet on `main` |
-| App | On the `setup/plan-and-app` branch, not deployed. Map, three layers, flood slider, dashboard tiles and demo alert log all work in dev |
+| Plan | On `main` on GitHub |
+| App | On `main` on GitHub, not deployed. Map, three layers, flood slider, dashboard tiles and demo alert log all work in dev |
 | Observed layer | **Empty.** The nearest CWC gauge to Simaluguri is not identified yet. Person 3 to find it on the Dikhow, Disang or Brahmaputra |
 | Forecast layer | Live rain forecast from Open-Meteo, with a saved copy for the demo |
 | Simulated layer | First HAND model for +1 to +6 m (1,348 to 2,118 km2). **Not checked against a real flood and probably too large.** It floods the Simaluguri point only from +6 m. It ignores embankments, and terrain errors matter on flat land |
