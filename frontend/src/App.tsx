@@ -245,6 +245,23 @@ function lockMapToRegion(map: MapLibreMap, [west, south, east, north]: number[])
   ])
 }
 
+// The view at a zoom amount, centred on the region's main point and kept inside the study area
+function regionCamera(map: MapLibreMap, location: Location, amount: number) {
+  const [west, south, east, north] = location.bbox
+  const [centreLon, centreLat] = location.coordinates
+  const halfWidth = (east - west) / amount / 2
+  const halfHeight = (north - south) / amount / 2
+  const lon = Math.min(east - halfWidth, Math.max(west + halfWidth, centreLon))
+  const lat = Math.min(north - halfHeight, Math.max(south + halfHeight, centreLat))
+  return map.cameraForBounds(
+    [
+      [lon - halfWidth, lat - halfHeight],
+      [lon + halfWidth, lat + halfHeight],
+    ],
+    { padding: 24 },
+  )
+}
+
 function unlockMap(map: MapLibreMap) {
   map.setMaxBounds(null)
   map.setMinZoom(null)
@@ -1233,6 +1250,7 @@ function ScenarioCharts({
   )
 }
 
+const FLOOD_TIMELINE_START = '2026-07-16'
 const RIVER_STATUS_LABEL: Record<FloodReportDay['river_status'], string> = {
   highest: 'Above highest flood level',
   danger: 'Above danger level',
@@ -1245,6 +1263,33 @@ function reportDayName(date: string) {
     month: 'long',
     timeZone: 'UTC',
   })
+}
+
+function floodReportSummary(reports: FloodReports | null) {
+  const days = reports?.days ?? []
+  if (!reports || days.length === 0) {
+    return { value: 'Not available', detail: 'No official flood reports for this location yet' }
+  }
+  const peak = days
+    .filter((day) => day.villages !== null)
+    .reduce<FloodReportDay | undefined>(
+      (best, day) => (Number(day.villages) > Number(best?.villages ?? -1) ? day : best),
+      undefined,
+    )
+  if (!peak) {
+    const danger = days.find((day) => day.river_status !== 'not_listed')
+    const river = String(reports.gauge).split(' (')[0]
+    return {
+      value: 'Not listed',
+      detail: `${reports.area} is not listed as affected, 12 to 28 July${
+        danger ? `. The ${river} was above danger level from ${reportDayName(danger.date)}` : ''
+      }`,
+    }
+  }
+  return {
+    value: `${formatCount(peak.villages)} villages`,
+    detail: `Peak reported on ${reportDayName(peak.date)} in ${reports.area}, with ${formatCount(peak.people)} people affected. Official counts for that area, not the map area`,
+  }
 }
 
 function FloodReportSource({ reports }: { reports: FloodReports }) {
@@ -1262,7 +1307,8 @@ function FloodReportSource({ reports }: { reports: FloodReports }) {
 // What officials reported day by day during the flood. This is evidence the flood happened, not a
 // score for the model, because the reports cover whole districts and revenue circles
 function FloodTimeline({ reports, radarDate }: { reports: FloodReports | null; radarDate?: string }) {
-  const days = reports?.days ?? []
+  // Earlier days show almost no change, so the charts start where the flood begins to build
+  const days = (reports?.days ?? []).filter((day) => day.date >= FLOOD_TIMELINE_START)
   if (!reports || days.length === 0) {
     return <p className="empty">Official flood reports are not available for this location yet.</p>
   }
@@ -1280,7 +1326,12 @@ function FloodTimeline({ reports, radarDate }: { reports: FloodReports | null; r
     return days.map((day) => ({
       label: String(Number(day.date.slice(8))),
       value: Number(day[field] ?? 0),
-      shown: day[field] === null ? 'Not listed' : `${formatCount(Math.round(Number(day[field])))}${unit}`,
+      shown:
+        day.villages === null
+          ? 'Not listed'
+          : day[field] === null
+            ? 'No figure'
+            : `${formatCount(Math.round(Number(day[field])))}${unit}`,
       highlight: day === peak,
     }))
   }
@@ -1310,7 +1361,7 @@ function FloodTimeline({ reports, radarDate }: { reports: FloodReports | null; r
       </p>
       {listed.length > 0 && (
         <div className="chart-grid chart-grid-three">
-          <ChartTile title="Villages affected" headline={headline('villages')} note="Reported each day, 12 to 24 July 2026.">
+          <ChartTile title="Villages affected" headline={headline('villages')} note="Reported each day, 16 to 28 July 2026.">
             <ColumnChart bars={bars('villages')} color={color} tint="#bcd3ee" />
           </ChartTile>
           <ChartTile title="People affected" headline={headline('people')} note="Official count, not people in floodwater.">
@@ -1385,8 +1436,20 @@ function FloodReportData({ reports }: { reports: FloodReports | null }) {
                   <tr key={day.date}>
                     <td>{reportDayName(day.date)}</td>
                     <td>{day.villages === null ? 'Not listed' : formatCount(day.villages)}</td>
-                    <td>{day.people === null ? 'Not listed' : formatCount(day.people)}</td>
-                    <td>{day.crop_hectares === null ? 'Not listed' : `${day.crop_hectares} ha`}</td>
+                    <td>
+                      {day.people !== null
+                        ? formatCount(day.people)
+                        : day.villages === null
+                          ? 'Not listed'
+                          : 'No figure'}
+                    </td>
+                    <td>
+                      {day.crop_hectares !== null
+                        ? `${day.crop_hectares} ha`
+                        : day.villages === null
+                          ? 'Not listed'
+                          : 'No figure'}
+                    </td>
                     <td>{RIVER_STATUS_LABEL[day.river_status]}</td>
                     <td>{day.report_generated ?? 'Not stated'}</td>
                   </tr>
@@ -1683,7 +1746,7 @@ export default function App() {
   const cameraLocationRef = useRef<string | null>(null)
   const scrollToTargetRef = useRef(false)
   const [mapTarget, setMapTarget] = useState<string | null>(null)
-  const [mapMode, setMapMode] = useState<MapMode>('default')
+  const [mapMode, setMapMode] = useState<MapMode>('satellite')
   const [mapLocked, setMapLocked] = useState(false)
   const [tab, setTab] = useState<TabId | 'report'>('scenario')
   const [reportInfo, setReportInfo] = useState<ReportInfo | null>(null)
@@ -1694,7 +1757,7 @@ export default function App() {
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [rise, setRise] = useState(2)
   const [playing, setPlaying] = useState(false)
-  const [zoom, setZoom] = useState(1)
+  const [zoom, setZoom] = useState(LOCATE_ZOOM)
   const [visible, setVisible] = useState<Record<Kind, boolean>>({
     observed: true,
     forecast: true,
@@ -2209,16 +2272,9 @@ export default function App() {
     markerRef.current.setLngLat(location.coordinates)
     // A hidden map has no size to fit, so it moves when its tab comes back
     if (cameraLocationRef.current === location.id || tab !== 'scenario') return
-    // A new region starts at its full view
-    setZoom(1)
-    const [west, south, east, north] = location.bbox
-    const camera = map.cameraForBounds(
-      [
-        [west, south],
-        [east, north],
-      ],
-      { padding: 24 },
-    )
+    // A new region starts at the same view as the locate button
+    setZoom(LOCATE_ZOOM)
+    const camera = regionCamera(map, location, LOCATE_ZOOM)
     if (!camera) return
     // The old region's limits would block the flight. The lock is set again when it lands
     unlockMap(map)
@@ -2297,19 +2353,7 @@ export default function App() {
     setZoom(amount)
     const map = mapRef.current
     if (!map || !location) return
-    const [west, south, east, north] = location.bbox
-    const [centreLon, centreLat] = location.coordinates
-    const halfWidth = (east - west) / amount / 2
-    const halfHeight = (north - south) / amount / 2
-    const lon = Math.min(east - halfWidth, Math.max(west + halfWidth, centreLon))
-    const lat = Math.min(north - halfHeight, Math.max(south + halfHeight, centreLat))
-    const camera = map.cameraForBounds(
-      [
-        [lon - halfWidth, lat - halfHeight],
-        [lon + halfWidth, lat + halfHeight],
-      ],
-      { padding: 24 },
-    )
+    const camera = regionCamera(map, location, amount)
     if (camera) map.easeTo({ ...camera, duration: ZOOM_DURATION_MS })
   }
 
@@ -2462,6 +2506,7 @@ export default function App() {
                   label={`Flooded land at +${rise} m`}
                   value={selected ? formatArea(selected.properties.flooded_area_km2) : 'No data'}
                 />
+                <Readout wide kind="observed" label="Official flood reports, July 2026" {...floodReportSummary(floodReports)} />
                 <Readout
                   wide
                   kind="observed"

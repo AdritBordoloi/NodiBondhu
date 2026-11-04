@@ -24,6 +24,8 @@ PAGE_HEADER = re.compile(r"DRIMS Assam\s+Disaster Reporting and Information Mana
 CIRCLE_FIGURES = re.compile(
     r"\(\s*([A-Za-z .\-]+?)\s*\|\s*Population\s+Affected\s*:\s*([\d,]+)\s*\|\s*Crop\s+Area\s+Submerged\s*:\s*([\d.,]+)\s*\)"
 )
+CIRCLE_PEOPLE = re.compile(r"\(\s*([A-Za-z .\-]+?)\s*\|\s*Population\s+Affected\s*:\s*([\d,]+)\s*\|")
+DISTRICT_ROW = re.compile(r"([A-Z][a-z]+(?: \(M\))?) [\d,]+ [\d,]+ [\d,]+ ([\d,]+) ([\d.,]+) \(")
 DISTRICT_VILLAGES = re.compile(r"([A-Z][a-z]+(?: [A-Z][a-z]+)*) (\d+) ((?:\( ?[A-Za-z .\-]+ ?\| ?\d+ ?\),? ?)+)")
 CIRCLE_VILLAGES = re.compile(r"\( ?([A-Za-z .\-]+?) ?\| ?(\d+) ?\)")
 STATE_TOTAL = re.compile(r"Total ([\d,]+) ([\d,]+) ([\d,]+) ([\d,]+) ([\d.,]+)")
@@ -57,18 +59,32 @@ def read_report(path: Path) -> dict:
     circles_by_district: dict[str, dict[str, int]] = {}
     village_totals: dict[str, int] = {}
     for district, total, members in DISTRICT_VILLAGES.findall(flat[villages_at:population_at]):
-        name = district.removeprefix("Affected ").strip()
+        # The first row follows the table's headings, which the pattern can read as part of the name
+        name = re.sub(r"^(?:(?:Villages|Affected|District|Total|Revenue|Circle) )+", "", district).strip()
         village_totals[name] = int(total)
         circles_by_district[name] = {circle.strip(): int(count) for circle, count in CIRCLE_VILLAGES.findall(members)}
 
     circle_figures = {}
     for circle, people, crops in CIRCLE_FIGURES.findall(flat):
         circle_figures.setdefault(circle.strip(), (int(number(people)), number(crops)))
+    # Some PDFs cut off the end of each row, which loses the crop figure but keeps the people count
+    for circle, people in CIRCLE_PEOPLE.findall(flat):
+        circle_figures.setdefault(circle.strip(), (int(number(people)), None))
+    # District rows hold the totals when circle crop figures are cut off
+    district_rows = {
+        name.strip(): (int(number(people)), number(crops))
+        for name, people, crops in DISTRICT_ROW.findall(flat[population_at:])
+    }
     total = STATE_TOTAL.search(flat)
     state_people = int(number(total.group(4))) if total else None
     state_crops = number(total.group(5)) if total else None
     people_sum = sum(people for people, _ in circle_figures.values())
-    crops_sum = sum(crops for _, crops in circle_figures.values())
+    if all(crops is not None for _, crops in circle_figures.values()):
+        crops_sum = sum(crops for _, crops in circle_figures.values())
+    else:
+        # Cut-off rows can lose whole circles, so the check uses the complete district rows instead
+        people_sum = sum(people for people, _ in district_rows.values())
+        crops_sum = sum(crops for _, crops in district_rows.values())
     checked = (
         total is not None
         and people_sum == state_people
@@ -88,11 +104,13 @@ def read_report(path: Path) -> dict:
             }
             for circle, count in circles_by_district[name].items()
         }
-        complete = all(item["people"] is not None for item in circles.values())
+        people_known = all(item["people"] is not None for item in circles.values())
+        crops_known = all(item["crop_hectares"] is not None for item in circles.values())
+        row = district_rows.get(name, (None, None))
         districts[name] = {
             "villages": village_totals[name],
-            "people": sum(item["people"] for item in circles.values()) if complete else None,
-            "crop_hectares": round(sum(item["crop_hectares"] for item in circles.values()), 2) if complete else None,
+            "people": sum(item["people"] for item in circles.values()) if people_known else row[0],
+            "crop_hectares": round(sum(item["crop_hectares"] for item in circles.values()), 2) if crops_known else row[1],
             "circles": circles,
         }
     generated = re.findall(r"Report Generated On: (\d{2}-\d{2}-\d{4})", flat)

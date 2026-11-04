@@ -637,6 +637,275 @@
      }
     }
    }
+  },
+  {
+   "date": "2026-07-25",
+   "report_generated": "28-08-2026",
+   "rivers_above_danger": [
+    "Dhansiri (S) (Numaligarh)",
+    "Dikhou (Sivasagar)"
+   ],
+   "rivers_above_highest": [],
+   "state_people": 654838,
+   "state_crop_hectares": 33373.8,
+   "checked_against_state_total": true,
+   "districts": {
+    "Sivasagar": {
+     "villages": 255,
+     "people": 290777,
+     "crop_hectares": 6158.45,
+     "circles": {
+      "Nazira": {
+       "villages": 41,
+       "people": 17885,
+       "crop_hectares": 3876.0
+      },
+      "Sivsagar": {
+       "villages": 114,
+       "people": 195846,
+       "crop_hectares": 50.0
+      },
+      "Amguri": {
+       "villages": 50,
+       "people": 17567,
+       "crop_hectares": 87.25
+      },
+      "Demow": {
+       "villages": 31,
+       "people": 36727,
+       "crop_hectares": 2145.2
+      },
+      "Sonari RC part": {
+       "villages": 19,
+       "people": 22752,
+       "crop_hectares": 0.0
+      }
+     }
+    },
+    "Charaideo": {
+     "villages": 148,
+     "people": 188404,
+     "crop_hectares": 14852.0,
+     "circles": {
+      "Mahmora": {
+       "villages": 67,
+       "people": 67128,
+       "crop_hectares": 7040.0
+      },
+      "Sonari": {
+       "villages": 80,
+       "people": 121276,
+       "crop_hectares": 7812.0
+      },
+      "Sapekhati": {
+       "villages": 1,
+       "people": 0,
+       "crop_hectares": 0.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "date": "2026-07-26",
+   "report_generated": "28-08-2026",
+   "rivers_above_danger": [
+    "Dhansiri (S) (Numaligarh)"
+   ],
+   "rivers_above_highest": [],
+   "state_people": 524733,
+   "state_crop_hectares": 47045.09,
+   "checked_against_state_total": true,
+   "districts": {
+    "Sivasagar": {
+     "villages": 259,
+     "people": 154064,
+     "crop_hectares": 22800.0,
+     "circles": {
+      "Sonari RC part": {
+       "villages": 19,
+       "people": 9052,
+       "crop_hectares": 0.0
+      },
+      "Nazira": {
+       "villages": 41,
+       "people": 17885,
+       "crop_hectares": 8551.0
+      },
+      "Amguri": {
+       "villages": 52,
+       "people": 41191,
+       "crop_hectares": 9364.0
+      },
+      "Demow": {
+       "villages": 33,
+       "people": 13090,
+       "crop_hectares": 564.0
+      },
+      "Sivsagar": {
+       "villages": 114,
+       "people": 72846,
+       "crop_hectares": 4321.0
+      }
+     }
+    },
+    "Charaideo": {
+     "villages": 148,
+     "people": 188404,
+     "crop_hectares": 13950.0,
+     "circles": {
+      "Mahmora": {
+       "villages": 67,
+       "people": 67128,
+       "crop_hectares": 6740.0
+      },
+      "Sapekhati": {
+       "villages": 1,
+       "people": 0,
+       "crop_hectares": 0.0
+      },
+      "Sonari": {
+       "villages": 80,
+       "people": 121276,
+       "crop_hectares": 7210.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "date": "2026-07-27",
+   "report_generated": null,
+   "rivers_above_danger": [
+    "Dhansiri (S) (Numaligarh)"
+   ],
+   "rivers_above_highest": [],
+   "state_people": 445495,
+   "state_crop_hectares": 37789.52,
+   "checked_against_state_total": true,
+   "districts": {
+    "Sivasagar": {
+     "villages": 232,
+     "people": 144461,
+     "crop_hectares": 13413.5,
+     "circles": {
+      "Nazira": {
+       "villages": 41,
+       "people": 17885,
+       "crop_hectares": null
+      },
+      "Demow": {
+       "villages": 24,
+       "people": 9465,
+       "crop_hectares": null
+      },
+      "Sivsagar": {
+       "villages": 114,
+       "people": 71452,
+       "crop_hectares": null
+      },
+      "Amguri": {
+       "villages": 46,
+       "people": 39152,
+       "crop_hectares": null
+      },
+      "Sonari RC part": {
+       "villages": 7,
+       "people": 6507,
+       "crop_hectares": null
+      }
+     }
+    },
+    "Charaideo": {
+     "villages": 149,
+     "people": 188404,
+     "crop_hectares": 17649.0,
+     "circles": {
+      "Mahmora": {
+       "villages": 67,
+       "people": 67128,
+       "crop_hectares": null
+      },
+      "Sonari": {
+       "villages": 80,
+       "people": 121276,
+       "crop_hectares": null
+      },
+      "Sapekhati": {
+       "villages": 2,
+       "people": 0,
+       "crop_hectares": null
+      }
+     }
+    }
+   }
+  },
+  {
+   "date": "2026-07-28",
+   "report_generated": "28-08-2026",
+   "rivers_above_danger": [
+    "Dhansiri (S) (Numaligarh)"
+   ],
+   "rivers_above_highest": [],
+   "state_people": 445495,
+   "state_crop_hectares": 35992.52,
+   "checked_against_state_total": true,
+   "districts": {
+    "Sivasagar": {
+     "villages": 232,
+     "people": 144461,
+     "crop_hectares": 13413.5,
+     "circles": {
+      "Nazira": {
+       "villages": 41,
+       "people": 17885,
+       "crop_hectares": 8551.0
+      },
+      "Demow": {
+       "villages": 24,
+       "people": 9465,
+       "crop_hectares": 463.0
+      },
+      "Sivsagar": {
+       "villages": 114,
+       "people": 71452,
+       "crop_hectares": 4321.0
+      },
+      "Amguri": {
+       "villages": 46,
+       "people": 39152,
+       "crop_hectares": 78.5
+      },
+      "Sonari RC part": {
+       "villages": 7,
+       "people": 6507,
+       "crop_hectares": 0.0
+      }
+     }
+    },
+    "Charaideo": {
+     "villages": 149,
+     "people": 188404,
+     "crop_hectares": 15852.0,
+     "circles": {
+      "Mahmora": {
+       "villages": 67,
+       "people": 67128,
+       "crop_hectares": 7340.0
+      },
+      "Sonari": {
+       "villages": 80,
+       "people": 121276,
+       "crop_hectares": 8512.0
+      },
+      "Sapekhati": {
+       "villages": 2,
+       "people": 0,
+       "crop_hectares": 0.0
+      }
+     }
+    }
+   }
   }
  ]
 }
