@@ -56,6 +56,8 @@ const ROUTE_LINE_FILTER: ExpressionSpecification = ['==', ['get', 'segment'], 'r
 const ALERT_PREVIEW_COUNT = 4
 const FLIGHT_DURATION_MS = 3600
 const FLOOD_FADE_MS = 1500
+// A little longer than the fade, so each scenario is fully drawn before the next
+const RISE_PLAY_STEP_MS = 2000
 const FLOOD_OPACITY = 0.4
 // Scenarios overlap, so the land that floods first builds up to the strongest colour
 const HEAT_OPACITY = 0.65
@@ -398,6 +400,150 @@ function RoadCheck({ routes, rise }: { routes: Layer | null; rise: number }) {
         {partlyMapped &&
           'Where the flood map covers only part of a route, the rest was not checked, so the real distance could be higher. '}
         {list[0].properties.quality}. Source: {list[0].properties.source}.
+      </p>
+    </>
+  )
+}
+
+// Every route against every river rise. "Clear" only means no flooded stretch was found in the model
+function RouteMatrix({
+  routes,
+  rise,
+  rises,
+  settlements,
+}: {
+  routes: Layer | null
+  rise: number
+  rises: number[]
+  settlements: Layer | null
+}) {
+  const floodedKm = (route: Feature, level: number) =>
+    Number(route.properties[`flooded_km_${level}`] ?? 0)
+  const firstFlooded = (route: Feature) =>
+    rises.find((level) => floodedKm(route, level) > 0) ?? Number.POSITIVE_INFINITY
+  const isPartial = (route: Feature) =>
+    Number(route.properties.mapped_km) < Number(route.properties.length_km)
+  const list = (routes?.features ?? [])
+    .filter((route) => route.properties.segment === 'route')
+    .sort(
+      (a, b) =>
+        firstFlooded(b) - firstFlooded(a) ||
+        Number(a.properties.length_km) - Number(b.properties.length_km),
+    )
+  if (list.length === 0) {
+    return <p className="empty">Road routes are not available for this location yet.</p>
+  }
+  const placeLevel = (route: Feature) => {
+    const end = String(route.properties.name).split(' to ').pop()
+    const place = settlements?.features.find((item) => item.properties.name === end)
+    if (!place) return 'Outside flood map'
+    const level = place.properties.first_flooded_at_m
+    return typeof level === 'number' ? `Reached at +${level} m` : 'Not reached'
+  }
+  const clearAt = (level: number) => list.filter((route) => floodedKm(route, level) === 0)
+  const clearNow = clearAt(rise)
+  // Least road in the flood area, then a fully checked route, then the shorter one
+  const safestAt = (level: number) =>
+    [...list].sort(
+      (a, b) =>
+        floodedKm(a, level) - floodedKm(b, level) ||
+        Number(isPartial(a)) - Number(isPartial(b)) ||
+        Number(a.properties.length_km) - Number(b.properties.length_km),
+    )[0]
+  const destination = (route: Feature) => String(route.properties.name).split(' to ').pop()
+  const safestNow = safestAt(rise)
+  return (
+    <>
+      <p className="report-text">
+        <strong>
+          {clearNow.length} of {list.length} routes have no flooded stretch in the model at +{rise} m
+          {clearNow.length > 0 && `: ${clearNow.map(destination).join(', ')}`}.{' '}
+          {floodedKm(safestNow, rise) > 0
+            ? `No route is clear, so the safest in the model is ${safestNow.properties.name}, with ${floodedKm(safestNow, rise)} km in the flood area.`
+            : `The safest in the model is ${safestNow.properties.name}.`}
+        </strong>{' '}
+        This is not a safety check, so confirm a road is open before using it.
+      </p>
+      <div className="table-wrap">
+        <table className="route-matrix">
+          <thead>
+            <tr>
+              <th scope="col">Route</th>
+              <th scope="col">Length</th>
+              <th scope="col">Checked</th>
+              <th scope="col">Destination</th>
+              {rises.map((level) => (
+                <th
+                  scope="col"
+                  key={level}
+                  className={level === rise ? 'route-level route-level-now' : 'route-level'}
+                >
+                  +{level} m
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((route) => (
+              <tr key={String(route.properties.name)}>
+                <td>{route.properties.name}</td>
+                <td>{route.properties.length_km} km</td>
+                <td>{route.properties.mapped_km} km</td>
+                <td>{placeLevel(route)}</td>
+                {rises.map((level) => {
+                  const km = floodedKm(route, level)
+                  const label = km > 0 ? `${km} km` : isPartial(route) ? 'Clear*' : 'Clear'
+                  const safest = safestAt(level) === route
+                  return (
+                    <td
+                      key={level}
+                      className={`route-level ${km > 0 ? 'route-flooded' : 'route-clear'}${safest ? ' route-safest' : ''}${level === rise ? ' route-level-now' : ''}`}
+                    >
+                      {safest ? `★ ${label}` : label}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th scope="row" colSpan={4}>
+                Routes with no flooded stretch
+              </th>
+              {rises.map((level) => (
+                <td
+                  key={level}
+                  className={level === rise ? 'route-level route-level-now' : 'route-level'}
+                >
+                  {clearAt(level).length} of {list.length}
+                </td>
+              ))}
+            </tr>
+            <tr>
+              <th scope="row" colSpan={4}>
+                ★ Safest in the model
+              </th>
+              {rises.map((level) => (
+                <td
+                  key={level}
+                  className={level === rise ? 'route-level route-level-now' : 'route-level'}
+                >
+                  {destination(safestAt(level))}
+                </td>
+              ))}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <p className="note">
+        ★ marks the route with the least road in the flood area at that rise, and a tie goes to the
+        fully checked route, then the shorter one. Green means clear and amber means it still has
+        flooded road. A distance is the length of the route in the flood area. * Only the part of the route inside
+        the flood map was checked, so the rest is unknown. Routes can share the same road, so they may
+        all be cut together. Not reached only means the model did not reach the mapped point. There
+        are no shelter locations in this data. {list[0].properties.quality}. Source:{' '}
+        {list[0].properties.source}.
       </p>
     </>
   )
@@ -1329,6 +1475,7 @@ export default function App() {
   const [allData, setAllData] = useState<Record<string, LocationData> | null>(null)
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [rise, setRise] = useState(2)
+  const [playing, setPlaying] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [visible, setVisible] = useState<Record<Kind, boolean>>({
     observed: true,
@@ -1871,6 +2018,18 @@ export default function App() {
   )
   const selected = scenarios.find((scenario) => scenario.properties.rise_m === rise)
   const riseValues = scenarios.map((scenario) => Number(scenario.properties.rise_m))
+  const riseSteps = riseValues.join(',')
+
+  // Steps through every scenario and starts again. It only runs while the map is on screen
+  useEffect(() => {
+    if (!playing || tab !== 'scenario' || !riseSteps) return
+    const steps = riseSteps.split(',').map(Number)
+    const timer = window.setInterval(() => {
+      setRise((current) => steps[(steps.indexOf(current) + 1) % steps.length])
+    }, RISE_PLAY_STEP_MS)
+    return () => window.clearInterval(timer)
+  }, [playing, tab, riseSteps])
+
   const affected = (settlements?.features ?? [])
     .filter((settlement) => {
       const level = settlement.properties.first_flooded_at_m
@@ -2096,42 +2255,57 @@ export default function App() {
                     max={Math.max(...riseValues)}
                     step={1}
                     value={rise}
-                    onChange={(event) => setRise(Number(event.target.value))}
+                    onChange={(event) => {
+                      setPlaying(false)
+                      setRise(Number(event.target.value))
+                    }}
                   />
+                  <button
+                    type="button"
+                    className="zoom-reset rise-play"
+                    aria-pressed={playing}
+                    onClick={() => setPlaying(!playing)}
+                  >
+                    {playing
+                      ? '❚❚ Pause'
+                      : `▶ Play +${Math.min(...riseValues)} m to +${Math.max(...riseValues)} m`}
+                  </button>
                 </>
               )}
 
-              <span className="field-label">Alert for this scenario</span>
-              {affected.length > 0 ? (
-                <>
-                  <p className="alert-preview">
-                    <strong>Simulated scenario, +{rise} m:</strong>{' '}
-                    {affected.slice(0, ALERT_PREVIEW_COUNT).join(', ')}
-                    {affected.length > ALERT_PREVIEW_COUNT &&
-                      ` and ${affected.length - ALERT_PREVIEW_COUNT} more`}{' '}
-                    may be affected. An officer must check this before any warning goes out.
+              <div className="alert-block">
+                <span className="field-label">Alert for this scenario</span>
+                {affected.length > 0 ? (
+                  <>
+                    <p className="alert-preview">
+                      <strong>Simulated scenario, +{rise} m:</strong>{' '}
+                      {affected.slice(0, ALERT_PREVIEW_COUNT).join(', ')}
+                      {affected.length > ALERT_PREVIEW_COUNT &&
+                        ` and ${affected.length - ALERT_PREVIEW_COUNT} more`}{' '}
+                      may be affected. An officer must check this before any warning goes out.
+                    </p>
+                    <button type="button" className="primary" onClick={logAlert} disabled={sendingAlert}>
+                      {sendingAlert ? 'Logging...' : 'Approve and log demo alert'}
+                    </button>
+                    <p className="note">Demo only: this is logged here and not sent to anyone.</p>
+                  </>
+                ) : (
+                  <p className="empty">No settlements affected in this scenario</p>
+                )}
+                {alertError && (
+                  <p className="error" role="alert">
+                    {alertError}
                   </p>
-                  <button type="button" className="primary" onClick={logAlert} disabled={sendingAlert}>
-                    {sendingAlert ? 'Logging...' : 'Approve and log demo alert'}
-                  </button>
-                  <p className="note">Demo only: this is logged here and not sent to anyone.</p>
-                </>
-              ) : (
-                <p className="empty">No settlements affected in this scenario</p>
-              )}
-              {alertError && (
-                <p className="error" role="alert">
-                  {alertError}
-                </p>
-              )}
-              {latestAlert && (
-                <p className="note">
-                  Last logged {formatTime(latestAlert.created_at)}.{' '}
-                  <button type="button" className="link" onClick={() => setTab('alerts')}>
-                    View alert log
-                  </button>
-                </p>
-              )}
+                )}
+                {latestAlert && (
+                  <p className="note">
+                    Last logged {formatTime(latestAlert.created_at)}.{' '}
+                    <button type="button" className="link" onClick={() => setTab('alerts')}>
+                      View alert log
+                    </button>
+                  </p>
+                )}
+              </div>
             </section>
 
             <section className="panel map-panel">
@@ -2200,9 +2374,9 @@ export default function App() {
             <section className="panel scenario-details">
               <h2 className="section-title">
                 <span className="swatch" style={{ backgroundColor: '#e53935' }} />
-                Road routes at +{rise} m
+                Road routes at each river rise
               </h2>
-              <RoadCheck routes={routes} rise={rise} />
+              <RouteMatrix routes={routes} rise={rise} rises={riseValues} settlements={settlements} />
             </section>
 
             <section className="panel scenario-details">

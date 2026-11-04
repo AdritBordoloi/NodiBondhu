@@ -35,7 +35,16 @@ QUALITY = (
 
 # Both ends must be in the same state, and each name must be a place in OpenStreetMap
 ROUTES = {
-    "simaluguri": (("Simaluguri", "Sivasagar"), ("Simaluguri", "Nazira"), ("Simaluguri", "Dimow")),
+    "simaluguri": (
+        ("Simaluguri", "Sivasagar"),
+        ("Simaluguri", "Nazira"),
+        ("Simaluguri", "Dimow"),
+        ("Simaluguri", "Santak"),
+        ("Simaluguri", "Gaurisagar Tiniali"),
+        ("Simaluguri", "Amguri"),
+        ("Simaluguri", "Moranhat"),
+        ("Simaluguri", "Jorhat"),
+    ),
     "sivasagar": (
         ("Sivasagar", "Simaluguri"),
         ("Sivasagar", "Amguri"),
@@ -43,12 +52,19 @@ ROUTES = {
         ("Sivasagar", "Moranhat"),
         ("Sivasagar", "Jorhat"),
         ("Sivasagar", "Dibrugarh"),
+        ("Sivasagar", "Nazira"),
+        ("Sivasagar", "Dimow"),
+        ("Sivasagar", "Santak"),
     ),
     "karimganj": (
         ("Karimganj", "Nilambazar"),
         ("Karimganj", "Fakira Bazar"),
         ("Karimganj", "Badarpur"),
         ("Karimganj", "Silchar"),
+        ("Karimganj", "Panchgram"),
+        ("Karimganj", "Hailakandi"),
+        ("Karimganj", "Ramkrishna Nagar"),
+        ("Karimganj", "Lala"),
     ),
 }
 

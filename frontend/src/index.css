@@ -310,6 +310,18 @@ h1:has(+ .subtitle) {
   cursor: default;
 }
 
+.rise-play {
+  display: block;
+  width: 100%;
+  margin: 6px 0 16px;
+  font-weight: 600;
+}
+
+.rise-play[aria-pressed='true'] {
+  background: var(--selected);
+  color: var(--navy);
+}
+
 /* Two columns */
 .columns {
   display: grid;
@@ -763,6 +775,11 @@ input:focus-visible {
     align-items: stretch;
   }
 
+  /* Room for the longest alert, so the map keeps its size as the river rise changes */
+  .alert-block {
+    min-height: 185px;
+  }
+
   /* The map takes up whatever height the control panel sets */
   .map-panel {
     display: flex;
@@ -778,6 +795,50 @@ input:focus-visible {
 
 .scenario-details {
   grid-column: 1 / -1;
+}
+
+/* Routes against each river rise. Words carry the meaning, and colour only supports them */
+.route-matrix th,
+.route-matrix td {
+  white-space: nowrap;
+}
+
+.route-matrix .route-level {
+  text-align: center;
+}
+
+.route-matrix .route-clear {
+  background: #e7f4ec;
+  color: #1b5e3a;
+}
+
+.route-matrix .route-flooded {
+  background: #fdecea;
+  color: #8c1d18;
+}
+
+.route-matrix .route-safest {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.route-matrix .route-clear.route-safest {
+  background: #1b6b3f;
+}
+
+.route-matrix .route-flooded.route-safest {
+  background: #b45309;
+}
+
+.route-matrix .route-level-now {
+  box-shadow: inset 2px 0 0 var(--navy), inset -2px 0 0 var(--navy);
+  font-weight: 700;
+}
+
+.route-matrix tfoot th,
+.route-matrix tfoot td {
+  border-top: 1px solid var(--border-strong);
+  font-weight: 600;
 }
 
 /* Scenario charts */
