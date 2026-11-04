@@ -44,9 +44,9 @@ type Kind = (typeof KINDS)[number]
 const SHARED_MAP_KINDS = ['observed', 'forecast'] as const
 
 const KIND_INFO: Record<Kind, { label: string; help: string; color: string }> = {
-  observed: { label: 'Observed', help: 'Measured on the ground or by satellite', color: '#1565c0' },
-  forecast: { label: 'Forecast', help: 'Model prediction of the future', color: '#b45309' },
-  simulated: { label: 'Simulated', help: 'What-if flood scenarios', color: '#7b1fa2' },
+  observed: { label: 'Observed', help: 'Measured on the ground or by satellite', color: '#4cc9f0' },
+  forecast: { label: 'Forecast', help: 'Model prediction of the future', color: '#f5b544' },
+  simulated: { label: 'Simulated', help: 'What-if flood scenarios', color: '#2ee6d6' },
 }
 
 const TABS = [
