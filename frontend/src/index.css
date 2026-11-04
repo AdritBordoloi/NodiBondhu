@@ -138,13 +138,13 @@ select {
 }
 
 h1 {
-  margin: 0;
+  margin: 0 0 16px;
   font-size: 1.5rem;
   color: var(--navy);
 }
 
-h1 + section {
-  margin-top: 16px;
+h1:has(+ .subtitle) {
+  margin-bottom: 0;
 }
 
 .subtitle {
@@ -172,8 +172,7 @@ h1 + section {
   position: relative;
   display: grid;
   grid-template-columns: repeat(var(--count), minmax(0, 1fr));
-  max-width: 420px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   border: 1px solid var(--navy);
   background: var(--panel);
 }

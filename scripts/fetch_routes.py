@@ -13,7 +13,7 @@ from pathlib import Path
 import httpx
 import shapely
 from shapely.geometry import LineString, MultiLineString, Point, box, mapping, shape
-from shapely.ops import linemerge, unary_union
+from shapely.ops import linemerge, nearest_points, unary_union
 
 from pilot_area import load_boundary, load_locations, read_secret
 
@@ -162,6 +162,16 @@ def build(location: dict, trips: list, answers: dict) -> list[dict]:
         for rise in RISES_M:
             properties[f"flooded_km_{rise}"] = round(length_km(flooded_parts[rise]), 1)
         features.append({"type": "Feature", "geometry": mapping(rounded(line)), "properties": properties})
+        # A dot on the road nearest each place, so the line clearly ends there
+        for place, point in zip(name.split(" to "), (start, end)):
+            on_route = nearest_points(line, Point(point))[0]
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": mapping(Point(round(on_route.x, COORDINATE_DIGITS), round(on_route.y, COORDINATE_DIGITS))),
+                    "properties": {"segment": "end", "name": place},
+                }
+            )
         for rise in RISES_M:
             part = flooded_parts[rise]
             if part.is_empty:

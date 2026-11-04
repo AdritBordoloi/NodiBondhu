@@ -30,6 +30,7 @@ const SETTLEMENTS = 'settlements'
 const ROUTES = 'routes'
 const ROUTES_CASING = 'routes-casing'
 const ROUTES_FLOODED = 'routes-flooded'
+const ROUTE_ENDS = 'route-ends'
 const ROUTE_LINE_FILTER: ExpressionSpecification = ['==', ['get', 'segment'], 'route']
 const ALERT_PREVIEW_COUNT = 8
 const FLIGHT_DURATION_MS = 2400
@@ -308,7 +309,8 @@ function RoadCheck({ routes, rise }: { routes: Layer | null; rise: number }) {
           {list.filter((route) => floodedKm(route) > 0).length} of {list.length} main routes pass
           through the flood area at +{rise} m.
         </strong>{' '}
-        On the map, routes are white and the stretches in the flood area are red. Routes were only
+        On the map, routes are white with a dot at each end, and the stretches in the flood area are
+        red. Routes were only
         checked where the flood map covers them, so white outside that area does not mean dry.
       </p>
       <div className="table-wrap">
@@ -826,6 +828,18 @@ export default function App() {
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': '#e53935', 'line-width': 3 },
       })
+      map.addLayer({
+        id: ROUTE_ENDS,
+        type: 'circle',
+        source: ROUTES,
+        filter: ['==', ['get', 'segment'], 'end'],
+        paint: {
+          'circle-color': '#ffffff',
+          'circle-radius': 5,
+          'circle-stroke-color': '#16284a',
+          'circle-stroke-width': 2,
+        },
+      })
       map.addSource(SETTLEMENTS, { type: 'geojson', data: empty })
       map.addLayer({
         id: SETTLEMENTS,
@@ -1024,7 +1038,7 @@ export default function App() {
       map.setPaintProperty(layerId, 'fill-opacity', id === locationId ? FLOOD_OPACITY : 0)
     }
     map.setLayoutProperty(SETTLEMENTS, 'visibility', simulatedVisibility)
-    for (const layerId of [ROUTES_CASING, ROUTES, ROUTES_FLOODED]) {
+    for (const layerId of [ROUTES_CASING, ROUTES, ROUTES_FLOODED, ROUTE_ENDS]) {
       map.setLayoutProperty(layerId, 'visibility', simulatedVisibility)
     }
     map.setFilter(ROUTES_FLOODED, [
@@ -1192,12 +1206,6 @@ export default function App() {
             Could not load data: {error}
           </p>
         )}
-        {tab !== 'report' && locations.length > 0 && (
-          <section>
-            <h2 className="section-title">Study Region</h2>
-            <LocationSwitch locations={locations} selectedId={locationId} onSelect={setLocationId} />
-          </section>
-        )}
 
         <div hidden={tab !== 'scenario'}>
           {scenarios.length === 0 && (
@@ -1207,6 +1215,17 @@ export default function App() {
           <div className="columns">
             <section className="panel">
               <h2 className="section-title">Scenario parameters</h2>
+
+              {locations.length > 0 && (
+                <>
+                  <span className="field-label">Study region</span>
+                  <LocationSwitch
+                    locations={locations}
+                    selectedId={locationId}
+                    onSelect={setLocationId}
+                  />
+                </>
+              )}
 
               <span className="field-label">Layers shown on map</span>
               <div className="segments">
