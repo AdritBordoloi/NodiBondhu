@@ -1,22 +1,23 @@
 # NodiBondhu: Hackathon Plan
 
-## Status (updated 1:20 pm, 4 Nov)
+## Status (updated night of 4 Nov)
 
 Step-by-step instructions for each person are in `TEAM_STEPS.md`.
 
-| Item | State |
-|---|---|
-| Challenge | Confirmed: NESFIC-D-18 |
-| Pilot area | **Simaluguri, Sivasagar district, Assam**, on the Dikhow river |
-| Plan | On `main` on GitHub |
-| App | On `main` on GitHub, not deployed. Map, three layers, flood slider, dashboard tiles and demo alert log all work in dev |
-| Observed layer | **Empty.** The nearest CWC gauge to Simaluguri is not identified yet. Person 3 to find it on the Dikhow, Disang or Brahmaputra |
-| Forecast layer | Live rain forecast from Open-Meteo, with a saved copy for the demo |
-| Simulated layer | First HAND model for +1 to +6 m (1,348 to 2,118 km2). **Not checked against a real flood and probably too large.** It floods the Simaluguri point only from +6 m. It ignores embankments, and terrain errors matter on flat land |
-| Settlements | Only 70 places in OpenStreetMap for this area, so counts are too low. No population data |
-| Next priority | Person 2: real past flood extent, to check the model |
-| Proposal | Waiting on Person 3: 12-section document |
-| Alerts | Demo log with officer approval. Nothing is sent to anyone |
+| Item            | State                                                                                                                                                                                                                            |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Challenge       | Confirmed: NESFIC-D-18                                                                                                                                                                                                           |
+| Study regions | **Simaluguri** (pilot) and **Sivasagar**, on the Dikhow, and **Karimganj (Sribhumi district)** on the Kushiyara and Longai. Karimganj results stop at the district boundary, so land in Bangladesh is not counted |
+| Plan            | On `main` on GitHub                                                                                                                                                                                                              |
+| App | On `main` on GitHub, not deployed. Study region buttons, flood slider, zoom, legend, place names, model check, census section, road check, report and demo alert log |
+| Observed layer | Sentinel-1 radar flood for July 2026 (Simaluguri 54.4, Sivasagar 177.9, Karimganj 42.5 km2). Past reported river levels: Dikhow at Sivasagar 94.26 m on 24 July 2026, Kushiyara at Karimganj 15.22 m on 22 July 2026. **No live gauge.** Radar covers 65% of Sivasagar, and Karimganj may include rice fields and wetlands |
+| Forecast layer | Rain forecast, past 7 days of rain and GloFAS river flow from Open-Meteo, with saved copies for the demo |
+| Simulated layer | HAND model for +1 to +6 m, recalibrated using low river levels. Closest to radar at +2 m, with 22-31% overlap, so **only a partial match**. +6 m still covers about 50-65% of the areas. It ignores embankments |
+| Villages | 2001 census for Simaluguri and Karimganj, many with no figure. Sivasagar census lookup is incomplete, so it shows Not available |
+| Road check      | Main routes in each study region from Bhuvan's Shortest Path API, measured against the flood map. Saved by `scripts/fetch_routes.py`. Shows risk only, not closed roads or recommended routes                                     |
+| Next priority | Test the report, deploy the website, finish the proposal and record the demo video |
+| Proposal        | Waiting on Person 3: 12-section document                                                                                                                                                                                         |
+| Alerts          | Demo log with officer approval. Nothing is sent to anyone                                                                                                                                                                        |
 
 ## 1. The problem we are solving
 
@@ -56,22 +57,22 @@ Key facts from the challenge page:
 
 I checked the sites with Firecrawl and the built-in browser. Several Assam government sites refused automated access, so some are unchecked.
 
-| Resource | Status | Use for NodiBondhu |
-|---|---|---|
-| Bhuvan (bhuvan.nrsc.gov.in) | Checked | Drainage, basin, sub-basin, watershed, water-body and village/district layers, plus a **Disaster mode**. Use for base layers and flood layers |
-| MOSDAC (mosdac.gov.in) | Checked | Satellite imagery, radar, weather, heavy-rain and cyclone forecasts, nowcasting. Use for the rainfall and forecast layer |
-| VEDAS (vedas.sac.gov.in) | Checked | Wetland dataset, drought portal and **experimental river water-level models, including the Brahmaputra**. Mentions a VEDAS API Centre. Check this first |
-| Geospatial catalogue (catalogue.geospatial.org.in) | Checked | 155 datasets from 35 providers: admin boundaries, land cover, soil moisture. Use for supporting layers |
-| Survey of India (onlinemaps.surveyofindia.gov.in) | Checked | Mapping products. The page only gave the geospatial-policy blurb, so check downloads manually |
-| ASDMA (asdma.assam.gov.in) | Checked in browser | Links: Smart Axom app, National Disaster Alert Portal, Community Response Portal, district disaster plans. Use as the user and integration target |
-| data.gov.in | Failed (503) | Retry later for rainfall and flood datasets |
-| DES Assam, NESDR Assam, Assam GIS geoportal | Not reachable | Blocked automated access. Open by hand and note what is downloadable |
+| Resource                                           | Status             | Use for NodiBondhu                                                                                                                                      |
+| -------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bhuvan (bhuvan.nrsc.gov.in)                        | Checked            | Drainage, basin, sub-basin, watershed, water-body and village/district layers, plus a **Disaster mode**. Use for base layers and flood layers           |
+| MOSDAC (mosdac.gov.in)                             | Checked            | Satellite imagery, radar, weather, heavy-rain and cyclone forecasts, nowcasting. Use for the rainfall and forecast layer                                |
+| VEDAS (vedas.sac.gov.in)                           | Checked            | Wetland dataset, drought portal and **experimental river water-level models, including the Brahmaputra**. Mentions a VEDAS API Centre. Check this first |
+| Geospatial catalogue (catalogue.geospatial.org.in) | Checked            | 155 datasets from 35 providers: admin boundaries, land cover, soil moisture. Use for supporting layers                                                  |
+| Survey of India (onlinemaps.surveyofindia.gov.in)  | Checked            | Mapping products. The page only gave the geospatial-policy blurb, so check downloads manually                                                           |
+| ASDMA (asdma.assam.gov.in)                         | Checked in browser | Links: Smart Axom app, National Disaster Alert Portal, Community Response Portal, district disaster plans. Use as the user and integration target       |
+| data.gov.in                                        | Failed (503)       | Retry later for rainfall and flood datasets                                                                                                             |
+| DES Assam, NESDR Assam, Assam GIS geoportal        | Not reachable      | Blocked automated access. Open by hand and note what is downloadable                                                                                    |
 
 Not on your list but worth using: Open-Meteo (free weather and rainfall API), Copernicus Sentinel-1 / Google Earth Engine (flood extent from radar), SRTM or Copernicus DEM (terrain), GloFAS (river discharge forecast), India-WRIS / CWC (river gauge levels).
 
 ## 3. What we build (MVP)
 
-A web app, **NodiBondhu Flood Twin**, for one pilot area. Pilot: **Simaluguri, Sivasagar district, Assam**, covering the surrounding area of about 60 km by 60 km.
+A web app, **NodiBondhu Flood Twin**, for three study regions in Assam: **Simaluguri** (pilot), **Sivasagar** and **Karimganj**.
 
 Must have:
 1. **Live map** (MapLibre or Leaflet): river network, villages, districts, DEM-based terrain.
