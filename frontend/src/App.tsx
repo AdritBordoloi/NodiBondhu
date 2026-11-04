@@ -51,6 +51,7 @@ const ZOOM_MAX = 4
 const ZOOM_STEP = 0.2
 const ZOOM_LEVELS = Array.from({ length: 16 }, (_, index) => Number((1 + index * ZOOM_STEP).toFixed(1)))
 const ZOOM_DURATION_MS = 500
+const LOCATE_ZOOM = 3
 const ROUTE_LINE_FILTER: ExpressionSpecification = ['==', ['get', 'segment'], 'route']
 const ALERT_PREVIEW_COUNT = 4
 const FLIGHT_DURATION_MS = 3600
@@ -1315,6 +1316,7 @@ export default function App() {
   const mapRef = useRef<MapLibreMap | null>(null)
   const [mapReady, setMapReady] = useState(false)
   const markerRef = useRef<Marker | null>(null)
+  const locateRef = useRef<() => void>(() => {})
   const cameraLocationRef = useRef<string | null>(null)
   const scrollToTargetRef = useRef(false)
   const [mapTarget, setMapTarget] = useState<string | null>(null)
@@ -1401,6 +1403,26 @@ export default function App() {
       },
     })
     map.addControl(new NavigationControl(), 'top-right')
+    map.addControl(
+      {
+        onAdd: () => {
+          const group = document.createElement('div')
+          group.className = 'maplibregl-ctrl maplibregl-ctrl-group'
+          const button = document.createElement('button')
+          button.type = 'button'
+          button.className = 'map-locate'
+          button.title = 'Locate the main point of this study region'
+          button.setAttribute('aria-label', button.title)
+          button.innerHTML =
+            '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>'
+          button.addEventListener('click', () => locateRef.current())
+          group.append(button)
+          return group
+        },
+        onRemove: () => {},
+      },
+      'top-right',
+    )
 
     // 'load' waits for every base map tile, and flood data must not depend on a slow tile server
     map.once('style.load', () => {
@@ -1886,6 +1908,11 @@ export default function App() {
     )
     if (camera) map.easeTo({ ...camera, duration: ZOOM_DURATION_MS })
   }
+
+  // The map's own button is made once, so it always reads the current region from here
+  useEffect(() => {
+    locateRef.current = () => applyZoom(LOCATE_ZOOM)
+  })
 
   const generateReport = async () => {
     const map = mapRef.current
