@@ -869,6 +869,180 @@ function ScenarioTable({ scenarios, selected }: { scenarios: Feature[]; selected
   )
 }
 
+type ChartBar = { label: string; value: number; shown: string; highlight: boolean; labelled?: boolean }
+
+// Ordered bars: the chosen one is strong and the rest are a tint of the same colour
+function ColumnChart({ bars, color, tint }: { bars: ChartBar[]; color: string; tint: string }) {
+  const largest = Math.max(...bars.map((bar) => bar.value), 0)
+  const height = (value: number) => (largest > 0 ? (value / largest) * 100 : 0)
+  return (
+    <div
+      className="chart-columns"
+      role="img"
+      aria-label={bars.map((bar) => `${bar.label}: ${bar.shown}`).join(', ')}
+    >
+      {bars.map((bar) => (
+        <div className="chart-column" key={bar.label} data-tip={`${bar.label}: ${bar.shown}`}>
+          <div className="chart-plot">
+            {(bar.highlight || bar.labelled) && (
+              <span className="chart-value" style={{ bottom: `${height(bar.value)}%` }}>
+                {bar.shown}
+              </span>
+            )}
+            <span
+              className="chart-bar"
+              style={{ height: `${height(bar.value)}%`, background: bar.highlight ? color : tint }}
+            />
+          </div>
+          <span className={bar.highlight ? 'chart-axis chart-axis-strong' : 'chart-axis'}>
+            {bar.label}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ChartTile({
+  title,
+  headline,
+  note,
+  children,
+}: {
+  title: string
+  headline: string
+  note: string
+  children: ReactNode
+}) {
+  return (
+    <figure className="chart">
+      <figcaption>
+        <span className="chart-title">{title}</span>
+        <strong className="chart-headline">{headline}</strong>
+      </figcaption>
+      {children}
+      <p className="chart-note">{note}</p>
+    </figure>
+  )
+}
+
+function ScenarioCharts({
+  scenarios,
+  rise,
+  villages,
+  landUse,
+  check,
+}: {
+  scenarios: Feature[]
+  rise: number
+  villages: Layer | null
+  landUse: LandUse | null
+  check: ModelCheckResult | null
+}) {
+  const { color: simulated } = KIND_INFO.simulated
+  const { color: observed } = KIND_INFO.observed
+  const last = scenarios.length - 1
+  const flooded = scenarios.map((scenario, index) => {
+    const riseM = Number(scenario.properties.rise_m)
+    return {
+      label: `+${riseM} m`,
+      value: Number(scenario.properties.flooded_area_km2),
+      shown: `${Math.round(Number(scenario.properties.flooded_area_km2)).toLocaleString('en-IN')} km²`,
+      highlight: riseM === rise,
+      labelled: index === last,
+    }
+  })
+  const people = scenarios.map((scenario, index) => {
+    const riseM = Number(scenario.properties.rise_m)
+    const count = summariseVillages(villages, riseM).people
+    return {
+      label: `+${riseM} m`,
+      value: count,
+      shown: formatCount(count),
+      highlight: riseM === rise,
+      labelled: index === last,
+    }
+  })
+  const selectedFlood = flooded.find((bar) => bar.highlight)
+  const selectedPeople = people.find((bar) => bar.highlight)
+  const land = landUse?.scenarios?.find((item) => item.rise_m === rise)?.land_types ?? []
+  const ranked = [...land].sort((a, b) => b.share - a.share)
+  const largestShare = ranked[0]?.share ?? 0
+  const overlaps = check?.scenarios ?? []
+  const best = overlaps.find((item) => item.rise_m === check?.best_rise_m)
+  return (
+    <div className="chart-grid">
+      <ChartTile
+        title="Flooded land"
+        headline={selectedFlood ? `${selectedFlood.shown} at +${rise} m` : 'No data'}
+        note="Simulated. Higher rises are likely too large."
+      >
+        <ColumnChart bars={flooded} color={simulated} tint="#dcc7e6" />
+      </ChartTile>
+      <ChartTile
+        title="People in villages with flooded land"
+        headline={selectedPeople ? `${selectedPeople.shown} at +${rise} m` : 'No data'}
+        note="2001 census, whole villages, not people flooded. Villages with no figure are left out."
+      >
+        <ColumnChart bars={people} color={simulated} tint="#dcc7e6" />
+      </ChartTile>
+      <ChartTile
+        title={`Flooded land use at +${rise} m`}
+        headline={
+          ranked[0] ? `Mostly ${ranked[0].name.toLowerCase()}, ${Math.round(largestShare * 100)}%` : 'No data'
+        }
+        note={ranked.length ? 'Estimated from sampled squares.' : 'Not available for this region yet.'}
+      >
+        <div className="chart-rows">
+          {ranked.map((item) => (
+            <div
+              className="chart-row"
+              key={item.name}
+              data-tip={`About ${Math.round(item.flooded_km2).toLocaleString('en-IN')} km²`}
+            >
+              <span className="chart-row-name">{item.name}</span>
+              <span className="chart-track">
+                <span
+                  className="chart-row-bar"
+                  style={{
+                    width: `${largestShare > 0 ? (item.share / largestShare) * 100 : 0}%`,
+                    background: simulated,
+                  }}
+                />
+              </span>
+              <span className="chart-row-value">{Math.round(item.share * 100)}%</span>
+            </div>
+          ))}
+        </div>
+      </ChartTile>
+      <ChartTile
+        title="Match with radar flood"
+        headline={
+          best
+            ? `Closest +${best.rise_m} m, ${Math.round(best.overlap_score * 100)}% overlap`
+            : 'No data'
+        }
+        note={
+          best
+            ? `Sentinel-1, ${check?.image_date}. Only a partial match.`
+            : 'No radar check for this region yet.'
+        }
+      >
+        <ColumnChart
+          bars={overlaps.map((item) => ({
+            label: `+${item.rise_m} m`,
+            value: item.overlap_score,
+            shown: `${Math.round(item.overlap_score * 100)}%`,
+            highlight: item.rise_m === check?.best_rise_m,
+          }))}
+          color={observed}
+          tint="#bcd3ee"
+        />
+      </ChartTile>
+    </div>
+  )
+}
+
 function captureMap(map: MapLibreMap): Promise<string | null> {
   return new Promise((resolve) => {
     const capture = () => {
@@ -2029,20 +2203,30 @@ export default function App() {
                 <dd>{selected?.properties.quality ?? 'No data'}</dd>
               </dl>
 
-              <h2 className="section-title">Scenario comparison</h2>
-              <ScenarioTable scenarios={scenarios} selected={selected} />
-              <p className="note">
-                Counts only cover places mapped in OpenStreetMap, so the real number will be higher.
-              </p>
+              <ScenarioCharts
+                scenarios={scenarios}
+                rise={rise}
+                villages={villages}
+                landUse={landUse}
+                check={modelCheck}
+              />
 
-              <h2 className="section-title census-title">Model check against a real flood</h2>
-              <ModelCheck check={modelCheck} />
+              <div className="chart-tables">
+                <h2 className="section-title">Scenario comparison</h2>
+                <ScenarioTable scenarios={scenarios} selected={selected} />
+                <p className="note">
+                  Counts only cover places mapped in OpenStreetMap, so the real number will be higher.
+                </p>
 
-              <h2 className="section-title census-title">Census villages with flooded land</h2>
-              <CensusVillages villages={villages} rise={rise} />
+                <h2 className="section-title census-title">Model check against a real flood</h2>
+                <ModelCheck check={modelCheck} />
 
-              <h2 className="section-title census-title">Land use in the flood area</h2>
-              <FloodedLandUse landUse={landUse} rise={rise} />
+                <h2 className="section-title census-title">Census villages with flooded land</h2>
+                <CensusVillages villages={villages} rise={rise} />
+
+                <h2 className="section-title census-title">Land use in the flood area</h2>
+                <FloodedLandUse landUse={landUse} rise={rise} />
+              </div>
             </section>
           </div>
         </div>
