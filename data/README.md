@@ -26,7 +26,7 @@ Each location names its model grid in `reference/locations.json`, and the grids 
 
 A location near a border can have a `reference/<location>/boundary.geojson`. Flood areas, settlements, villages and land use are then limited to the land inside it. Karimganj uses this so that land in Bangladesh isn't counted.
 
-Census villages go in `reference/<location>/villages.geojson`. `scripts/fetch_villages.py <location>` creates the file using Bhuvan's village lookup, and needs `BHUVAN_VILLAGE_TOKEN` in `backend/.env`. Keep that key out of Git and out of frontend code.
+Census villages go in `reference/<location>/villages.geojson`. `scripts/fetch_villages.py <location>` creates the file using Bhuvan's village lookup and village geocode, and needs `BHUVAN_VILLAGE_TOKEN` and `BHUVAN_VILLAGE_GEOCODE_TOKEN` in `backend/.env`. A population is only used when a census record of the same name is within 3 km and clearly the closest. Keep these keys out of Git and out of frontend code.
 
 Land use estimates go in `reference/<location>/land_use.json`. `scripts/fetch_land_use.py <location>` creates the file using Bhuvan's land use API, and needs `BHUVAN_LULC_AOI_TOKEN` in `backend/.env`.
 

@@ -1,11 +1,14 @@
-"""Find census villages across a location with Bhuvan's village lookup and link them to flood scenarios.
+"""Find census villages across a location with Bhuvan's village services and link them to flood scenarios.
 
 Run: python scripts/fetch_villages.py simaluguri
-Needs BHUVAN_VILLAGE_TOKEN in backend/.env. Answers are saved as they arrive, so a stopped
-run carries on where it left off. Run again with no new lookups to rebuild the output file.
+The reverse lookup names the village at each point, and needs BHUVAN_VILLAGE_TOKEN in backend/.env.
+The village geocode then gives census records with positions for each name, and needs
+BHUVAN_VILLAGE_GEOCODE_TOKEN. Answers are saved, so a stopped run carries on where it left off,
+and a run with no new lookups only rebuilds the output file.
 """
 import json
 import math
+import re
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -20,18 +23,25 @@ from pilot_area import load_boundary, load_locations, read_secret
 ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "raw"
 URL = "https://bhuvan-app1.nrsc.gov.in/api/api_proximity/curl_reverse_village.php"
+CENSUS_URL = "https://bhuvan-app1.nrsc.gov.in/api/api_proximity/curl_village_geocode.php"
 HEADERS = {"Content-Type": "application/x-www-form-urlencoded"}
 
 STEP_DEGREES = 0.01  # about 1 km
 PAUSE_SECONDS = 0.5
+CENSUS_PAUSE_SECONDS = 0.2
+MAX_MATCH_KM = 3  # a census position further than this from the point is a different village
+CLEAR_MATCH_RATIO = 1.5  # the next census record must be this much further away
 MAX_FAILURES_IN_A_ROW = 5
 RISES_M = (1, 2, 3, 4, 5, 6)
+# The village layer also names railway stations and forest land, which are not villages
+NOT_A_VILLAGE = re.compile(r"^forest$|\brly\b|\bstation\b", re.IGNORECASE)
 SOURCE = "Census 2001 village data from the Bhuvan API, NRSC/ISRO"
 QUALITY = (
     "Census from 2001, so about 25 years old. Found by checking points about 1 km apart, so small "
-    "villages can be missed. Population is matched by village name within the district, so it is "
-    "left blank when the name is missing or shared, and a match can still be wrong. It is the "
-    "whole village, not the number of people flooded. Village position is approximate"
+    "villages can be missed. Population is matched by village name and nearby census position "
+    "within the district, so it is left blank when no clear match exists, and a match can still "
+    "be wrong. It is the whole village, not the number of people flooded. Village position is "
+    "approximate"
 )
 
 
@@ -88,6 +98,63 @@ def collect(location: dict, points: list[tuple[float, float]], raw_path: Path) -
     return answers
 
 
+def collect_census(location: dict, names: list[str], raw_path: Path) -> dict:
+    answers = json.loads(raw_path.read_text(encoding="utf-8")) if raw_path.exists() else {}
+    missing = [name for name in names if name not in answers]
+    print(f"{location['id']}: {len(names)} names, {len(missing)} still to look up in the census", flush=True)
+    if not missing:
+        return answers
+
+    token = read_secret("BHUVAN_VILLAGE_GEOCODE_TOKEN")
+    failures = 0
+    with httpx.Client(timeout=25) as client:
+        for number, name in enumerate(missing, 1):
+            try:
+                response = client.get(CENSUS_URL, params={"village": name, "token": token}, headers=HEADERS)
+                response.raise_for_status()
+                answer = response.json()
+                answers[name] = answer if isinstance(answer, list) else []
+                failures = 0
+            except (httpx.HTTPError, ValueError) as error:
+                # Only the error type is shown, because the full message contains the key
+                failures += 1
+                print(f"census lookup failed for {name}: {type(error).__name__}", flush=True)
+                if failures >= MAX_FAILURES_IN_A_ROW:
+                    raw_path.write_text(json.dumps(answers), encoding="utf-8")
+                    raise SystemExit("Stopping after repeated failures. Run again to carry on.")
+            if number % 50 == 0:
+                raw_path.write_text(json.dumps(answers), encoding="utf-8")
+                print(f"{number}/{len(missing)} done", flush=True)
+            time.sleep(CENSUS_PAUSE_SECONDS)
+    raw_path.write_text(json.dumps(answers), encoding="utf-8")
+    return answers
+
+
+def km_between(a: tuple[float, float], b: tuple[float, float]) -> float:
+    return math.hypot((a[0] - b[0]) * 111.32 * math.cos(math.radians(a[1])), (a[1] - b[1]) * 110.57)
+
+
+def census_position(record: dict) -> tuple[float, float] | None:
+    try:
+        return float(record["longitude"]), float(record["latitude"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def nearest_census(point: tuple[float, float], records: list[dict]) -> dict | None:
+    """Tell same-named villages apart by position, and give no match when it isn't clear."""
+    placed = sorted(
+        (km_between(point, census_position(record)), index)
+        for index, record in enumerate(records)
+        if census_position(record)
+    )
+    if not placed or placed[0][0] > MAX_MATCH_KM:
+        return None
+    if len(placed) > 1 and placed[1][0] < placed[0][0] * CLEAR_MATCH_RATIO:
+        return None
+    return records[placed[0][1]]
+
+
 def number_or_none(value) -> int | None:
     try:
         return int(value)
@@ -113,38 +180,90 @@ def first_flood_level(point: Point, trees: dict) -> int | None:
     return None
 
 
-def build_villages(location: dict, answers: dict) -> list[dict]:
+def build_villages(location: dict, answers: dict, census: dict) -> list[dict]:
+    district = location["census_district"].lower()
     trees = flood_trees(location)
     timestamp = datetime.now(timezone(timedelta(hours=5, minutes=30))).isoformat(timespec="minutes")
     villages: dict[str, dict] = {}
     for key, records in answers.items():
         name = (records[0].get("name1") or "").strip() if records else ""
-        if not name:
+        if not name or NOT_A_VILLAGE.search(name):
             continue
         lon, lat = (float(part) for part in key.split(","))
         level = first_flood_level(Point(lon, lat), trees)
-        # The service names the village at the point, then returns every census village in
-        # India with that name, so only a single match in the right district can be trusted
-        matches = [
-            record
-            for record in records
-            if (record.get("dhq_name") or "").strip().lower() == location["census_district"].lower()
-            and (record.get("vid") or "").strip()
+        local = [
+            candidate
+            for candidate in census.get(name.lower(), [])
+            if (candidate.get("dist_name") or "").strip().lower() == district
         ]
-        record = matches[0] if len(matches) == 1 else None
-        village_id = (record["vid"].strip() if record else "")
+        record = None
+        if local:
+            found = nearest_census((lon, lat), local)
+            if found:
+                position = census_position(found)
+                record = {
+                    "key": f"{position[0]},{position[1]}",
+                    "population": found.get("tot_p"),
+                    "households": found.get("no_hh"),
+                    "taluk": found.get("tehs_name"),
+                    "position": position,
+                }
+        else:
+            # The reverse lookup returns every census village in India with this name, so
+            # without a position only a single match in the right district can be trusted
+            matches = [
+                candidate
+                for candidate in records
+                if (candidate.get("dhq_name") or "").strip().lower() == district
+                and (candidate.get("vid") or "").strip()
+            ]
+            if len(matches) == 1:
+                record = {
+                    "key": matches[0]["vid"].strip(),
+                    "population": matches[0].get("tot_p"),
+                    "households": matches[0].get("no_hh"),
+                    "taluk": matches[0].get("thq_name"),
+                    "position": None,
+                }
         entry = villages.setdefault(
-            village_id or f"name:{name.lower()}",
-            {"record": record, "name": name, "village_id": village_id, "points": [], "levels": []},
+            record["key"] if record else f"name:{name.lower()}",
+            {"record": record, "name": name, "points": [], "levels": []},
         )
         entry["points"].append((lon, lat))
         entry["levels"].append(level)
 
+    # A point with no clear census match usually belongs to a same-named village close by
+    for key, entry in list(villages.items()):
+        if entry["record"]:
+            continue
+        same_name = [
+            other
+            for other in villages.values()
+            if other["record"] and other["name"].lower() == entry["name"].lower()
+        ]
+        if not same_name:
+            continue
+        kept = []
+        for point, level in zip(entry["points"], entry["levels"]):
+            distance, closest = min(
+                ((min(km_between(point, other_point) for other_point in other["points"]), index)
+                 for index, other in enumerate(same_name)),
+            )
+            if distance <= MAX_MATCH_KM:
+                same_name[closest]["points"].append(point)
+                same_name[closest]["levels"].append(level)
+            else:
+                kept.append((point, level))
+        if kept:
+            entry["points"], entry["levels"] = (list(values) for values in zip(*kept))
+        else:
+            del villages[key]
+
     features = []
     for entry in villages.values():
         record = entry["record"] or {}
-        population = number_or_none(record.get("tot_p"))
-        households = number_or_none(record.get("no_hh"))
+        population = number_or_none(record.get("population"))
+        households = number_or_none(record.get("households"))
         levels = [level for level in entry["levels"] if level is not None]
         lons, lats = zip(*entry["points"])
         features.append(
@@ -152,7 +271,10 @@ def build_villages(location: dict, answers: dict) -> list[dict]:
                 "type": "Feature",
                 "geometry": {
                     "type": "Point",
-                    "coordinates": [round(sum(lons) / len(lons), 5), round(sum(lats) / len(lats), 5)],
+                    "coordinates": list(
+                        record.get("position")
+                        or (round(sum(lons) / len(lons), 5), round(sum(lats) / len(lats), 5))
+                    ),
                 },
                 "properties": {
                     "kind": "simulated",
@@ -160,11 +282,10 @@ def build_villages(location: dict, answers: dict) -> list[dict]:
                     "source": SOURCE,
                     "timestamp": timestamp,
                     "quality": QUALITY,
-                    "village_id": entry["village_id"] or None,
                     "population_2001": population,
                     "households_2001": households,
                     "district": location["census_district"],
-                    "taluk": (record.get("thq_name") or "").strip().title() or None,
+                    "taluk": (record.get("taluk") or "").strip().title() or None,
                     "points_checked": len(entry["points"]),
                     "first_flooded_at_m": min(levels) if levels else None,
                 },
@@ -184,7 +305,9 @@ def main() -> None:
     if boundary is not None:
         points = [point for point in points if boundary.contains(Point(point))]
     answers = collect(location, points, raw_path)
-    features = build_villages(location, answers)
+    names = sorted({(records[0].get("name1") or "").strip().lower() for records in answers.values() if records} - {""})
+    census = collect_census(location, names, RAW_DIR / f"bhuvan_census_{location_id}.json")
+    features = build_villages(location, answers, census)
     path = ROOT / "data" / "reference" / location_id / "villages.geojson"
     path.write_text(json.dumps({"type": "FeatureCollection", "features": features}), encoding="utf-8")
 

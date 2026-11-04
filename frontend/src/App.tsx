@@ -31,6 +31,7 @@ const ROUTES = 'routes'
 const ROUTES_CASING = 'routes-casing'
 const ROUTES_FLOODED = 'routes-flooded'
 const ROUTE_ENDS = 'route-ends'
+const VILLAGES = 'villages'
 const ROUTE_LINE_FILTER: ExpressionSpecification = ['==', ['get', 'segment'], 'route']
 const ALERT_PREVIEW_COUNT = 8
 const FLIGHT_DURATION_MS = 2400
@@ -55,7 +56,14 @@ const TABS = [
 ] as const
 type TabId = (typeof TABS)[number]['id']
 
-const STANDARD_FIELDS = new Set(['kind', 'name', 'source', 'timestamp', 'quality'])
+const STANDARD_FIELDS = new Set([
+  'kind',
+  'name',
+  'source',
+  'timestamp',
+  'quality',
+  'points_checked',
+])
 const POLYGON_FILTER: ExpressionSpecification = [
   'in',
   ['geometry-type'],
@@ -217,12 +225,13 @@ function CensusVillages({
     <>
       <p className="report-text">
         <strong>
-          {reached.length} of {villages.features.length} census villages have flooded land at +
+          {reached.length} of {villages.features.length} mapped villages have flooded land at +
           {rise} m.
         </strong>{' '}
-        {formatCount(people)} people lived in those villages in 2001
+        {formatCount(people)} people lived in the {reached.length - missingCounts} with a census
+        figure in 2001
         {missingCounts > 0 &&
-          `, not counting ${missingCounts} villages with no reliable population figure, so the real total is higher`}
+          `. The other ${missingCounts} have no reliable figure, so the real total is higher`}
         . This is the whole village population, not the number of people flooded.
       </p>
       {reached.length > 0 && (
@@ -231,6 +240,7 @@ function CensusVillages({
             <thead>
               <tr>
                 <th scope="col">Village</th>
+                <th scope="col">Tehsil</th>
                 <th scope="col">First flooded land at</th>
                 <th scope="col">Population, 2001</th>
                 <th scope="col">Households, 2001</th>
@@ -238,8 +248,9 @@ function CensusVillages({
             </thead>
             <tbody>
               {reached.map((village) => (
-                <tr key={String(village.properties.village_id ?? village.properties.name)}>
+                <tr key={`${village.properties.name}-${JSON.stringify(village.geometry)}`}>
                   <td>{village.properties.name}</td>
+                  <td>{village.properties.taluk ?? 'Not known'}</td>
                   <td>+{village.properties.first_flooded_at_m} m</td>
                   <td>{formatCount(village.properties.population_2001)}</td>
                   <td>{formatCount(village.properties.households_2001)}</td>
@@ -250,7 +261,8 @@ function CensusVillages({
         </div>
       )}
       <p className="note">
-        {quality}. Source: {source}.
+        On the map, small blue dots are villages with a census figure, and small grey dots have no
+        reliable figure. {quality}. Source: {source}.
       </p>
     </>
   )
@@ -840,6 +852,23 @@ export default function App() {
           'circle-stroke-width': 2,
         },
       })
+      map.addSource(VILLAGES, { type: 'geojson', data: empty })
+      map.addLayer({
+        id: VILLAGES,
+        type: 'circle',
+        source: VILLAGES,
+        paint: {
+          'circle-color': [
+            'case',
+            ['==', ['typeof', ['get', 'population_2001']], 'number'],
+            '#29b6f6',
+            '#b0bec5',
+          ],
+          'circle-radius': 3.5,
+          'circle-stroke-color': '#16284a',
+          'circle-stroke-width': 1,
+        },
+      })
       map.addSource(SETTLEMENTS, { type: 'geojson', data: empty })
       map.addLayer({
         id: SETTLEMENTS,
@@ -873,13 +902,15 @@ export default function App() {
         const layers = [
           ...SHARED_MAP_KINDS.map((kind) => `${kind}-point`),
           SETTLEMENTS,
+          VILLAGES,
           floodLayerId(locationIdRef.current ?? ''),
         ].filter((id) => map.getLayer(id))
         return map.queryRenderedFeatures(point, { layers })[0]
       }
       map.on('click', (event) => {
-        const clicked = featureAt(event.point)?.properties as Properties | undefined
-        if (!clicked) return
+        const feature = featureAt(event.point)
+        const clicked = feature?.properties as Properties | undefined
+        if (!feature || !clicked) return
         // MapLibre drops null values from clicked features, so use the original data
         const original = KINDS.flatMap((kind) => layersRef.current[kind]?.features ?? []).find(
           (feature) => feature.properties.name === clicked.name,
@@ -887,7 +918,13 @@ export default function App() {
         popupRef.current?.remove()
         popupRef.current = new Popup()
           .setLngLat(event.lngLat)
-          .setDOMContent(popupContent(original?.properties ?? clicked))
+          .setDOMContent(
+            popupContent(
+              feature.layer.id === VILLAGES
+                ? { taluk: null, population_2001: null, households_2001: null, ...clicked }
+                : (original?.properties ?? clicked),
+            ),
+          )
           .addTo(map)
       })
       map.on('mousemove', (event) => {
@@ -1002,6 +1039,7 @@ export default function App() {
     }
     if (settlements) (map.getSource(SETTLEMENTS) as GeoJSONSource).setData(settlements)
     if (routes) (map.getSource(ROUTES) as GeoJSONSource).setData(routes)
+    if (villages) (map.getSource(VILLAGES) as GeoJSONSource).setData(villages)
     const [west, south, east, north] = location.bbox
     ;(map.getSource(PILOT_AREA) as GeoJSONSource).setData({
       type: 'Feature',
@@ -1017,7 +1055,7 @@ export default function App() {
         ],
       },
     })
-  }, [location, locationId, layers, settlements, routes, mapReady])
+  }, [location, locationId, layers, settlements, routes, villages, mapReady])
 
   useEffect(() => {
     const map = mapRef.current
@@ -1038,7 +1076,7 @@ export default function App() {
       map.setPaintProperty(layerId, 'fill-opacity', id === locationId ? FLOOD_OPACITY : 0)
     }
     map.setLayoutProperty(SETTLEMENTS, 'visibility', simulatedVisibility)
-    for (const layerId of [ROUTES_CASING, ROUTES, ROUTES_FLOODED, ROUTE_ENDS]) {
+    for (const layerId of [ROUTES_CASING, ROUTES, ROUTES_FLOODED, ROUTE_ENDS, VILLAGES]) {
       map.setLayoutProperty(layerId, 'visibility', simulatedVisibility)
     }
     map.setFilter(ROUTES_FLOODED, [
@@ -1047,12 +1085,14 @@ export default function App() {
       ['==', ['get', 'rise_m'], rise],
     ])
     // A null level means the model never floods the place, and to-number would turn it into 0
-    map.setFilter(SETTLEMENTS, [
+    const reachedFilter: ExpressionSpecification = [
       'case',
       ['==', ['typeof', ['get', 'first_flooded_at_m']], 'number'],
       ['<=', ['to-number', ['get', 'first_flooded_at_m']], rise],
       false,
-    ])
+    ]
+    map.setFilter(SETTLEMENTS, reachedFilter)
+    map.setFilter(VILLAGES, reachedFilter)
   }, [locations, locationId, visible, rise, mapReady, allData])
 
   useEffect(() => {
@@ -1272,7 +1312,7 @@ export default function App() {
                   value={villages?.features.length ? formatCount(villageSummary.people) : 'Not available'}
                   detail={
                     villages?.features.length
-                      ? `${villageSummary.reached.length} villages. 2001 census, whole village population, not people flooded`
+                      ? `From ${villageSummary.reached.length - villageSummary.missingCounts} of ${villageSummary.reached.length} villages with a census figure, so the real total is higher. 2001 census, whole village population, not people flooded`
                       : 'No census village data for this location yet'
                   }
                 />
