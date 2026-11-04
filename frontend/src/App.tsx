@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import {
   Map as MapLibreMap,
   Marker,
+  LngLat,
   NavigationControl,
   setWorkerUrl,
   type ExpressionSpecification,
@@ -201,6 +202,34 @@ function floodLayerId(locationId: string) {
 
 function formatBbox([west, south, east, north]: Location['bbox']) {
   return `${south.toFixed(2)}–${north.toFixed(2)}° N, ${west.toFixed(2)}–${east.toFixed(2)}° E`
+}
+
+// Stops the map zooming out past the region's full view or panning away from it. The limits match
+// what that view shows on screen, because tighter ones would force the map to zoom in on a wide panel
+function lockMapToRegion(map: MapLibreMap, [west, south, east, north]: number[]) {
+  const camera = map.cameraForBounds(
+    [
+      [west, south],
+      [east, north],
+    ],
+    { padding: 24 },
+  )
+  const { clientWidth, clientHeight } = map.getContainer()
+  if (camera?.center === undefined || camera.zoom === undefined || !clientWidth || !clientHeight) return
+  const centre = LngLat.convert(camera.center)
+  const degreesPerPixel = 360 / (512 * 2 ** camera.zoom)
+  const halfWidth = (clientWidth / 2) * degreesPerPixel * 1.01
+  const halfHeight = (clientHeight / 2) * degreesPerPixel * Math.cos((centre.lat * Math.PI) / 180) * 1.01
+  map.setMinZoom(camera.zoom)
+  map.setMaxBounds([
+    [centre.lng - halfWidth, centre.lat - halfHeight],
+    [centre.lng + halfWidth, centre.lat + halfHeight],
+  ])
+}
+
+function unlockMap(map: MapLibreMap) {
+  map.setMaxBounds(null)
+  map.setMinZoom(null)
 }
 
 // Starts and stops gently, with no pull back or overshoot
@@ -1463,6 +1492,7 @@ export default function App() {
   const scrollToTargetRef = useRef(false)
   const [mapTarget, setMapTarget] = useState<string | null>(null)
   const [mapMode, setMapMode] = useState<MapMode>('default')
+  const [mapLocked, setMapLocked] = useState(false)
   const [tab, setTab] = useState<TabId | 'report'>('scenario')
   const [reportInfo, setReportInfo] = useState<ReportInfo | null>(null)
   const [locations, setLocations] = useState<Location[]>([])
@@ -1995,6 +2025,8 @@ export default function App() {
       { padding: 24 },
     )
     if (!camera) return
+    // The old region's limits would block the flight. The lock is set again when it lands
+    unlockMap(map)
     if (cameraLocationRef.current === null) {
       map.jumpTo(camera)
     } else {
@@ -2008,6 +2040,28 @@ export default function App() {
     }
     cameraLocationRef.current = location.id
   }, [location, mapReady, tab])
+
+  // This runs after the flight above has started, so it can wait for it to land
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady || !location) return
+    if (!mapLocked) {
+      unlockMap(map)
+      return
+    }
+    // A hidden map has no size to measure
+    if (tab !== 'scenario') return
+    const applyLock = () => {
+      if (!map.isMoving()) lockMapToRegion(map, location.bbox)
+    }
+    applyLock()
+    map.on('moveend', applyLock)
+    map.on('resize', applyLock)
+    return () => {
+      map.off('moveend', applyLock)
+      map.off('resize', applyLock)
+    }
+  }, [mapLocked, location, mapReady, tab])
 
   const scenarios = [...(layers.simulated?.features ?? [])].sort(
     (a, b) => Number(a.properties.rise_m) - Number(b.properties.rise_m),
@@ -2307,6 +2361,32 @@ export default function App() {
             <section className="panel map-panel">
               <div className="map-panel-head">
                 <h2 className="section-title">Selected scenario</h2>
+                <button
+                  type="button"
+                  className="map-lock"
+                  aria-pressed={mapLocked}
+                  aria-label="Lock the map to this study region"
+                  title={
+                    mapLocked
+                      ? 'Map locked to this study region. Select to unlock'
+                      : 'Lock the map to this study region'
+                  }
+                  onClick={() => setMapLocked(!mapLocked)}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="16"
+                    height="16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    aria-hidden="true"
+                  >
+                    <rect x="5" y="11" width="14" height="10" rx="2" />
+                    <path d={mapLocked ? 'M8 11V7a4 4 0 0 1 8 0v4' : 'M8 11V7a4 4 0 0 1 7.5-2'} />
+                  </svg>
+                </button>
                 <div className="segments map-mode" role="group" aria-label="Map view">
                   {MAP_MODES.map(({ id, label }) => (
                     <button

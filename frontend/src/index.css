@@ -1042,6 +1042,31 @@ input:focus-visible {
   margin: 0;
 }
 
+.map-lock {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: #e8edf3;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.map-lock:hover {
+  color: var(--navy);
+}
+
+.map-lock[aria-pressed='true'] {
+  background: var(--navy);
+  color: #ffffff;
+}
+
 .map-mode .segment {
   min-height: 30px;
   padding: 0 12px;
