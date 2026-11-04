@@ -1998,6 +1998,14 @@ export default function App() {
             </section>
 
             <section className="panel scenario-details">
+              <h2 className="section-title">
+                <span className="swatch" style={{ backgroundColor: '#e53935' }} />
+                Road routes at +{rise} m
+              </h2>
+              <RoadCheck routes={routes} rise={rise} />
+            </section>
+
+            <section className="panel scenario-details">
               <h3 className="selected-name">
                 +{rise} m river rise{location && `, ${location.name} map area`}
               </h3>
@@ -2039,9 +2047,6 @@ export default function App() {
 
               <h2 className="section-title census-title">Land use in the flood area</h2>
               <FloodedLandUse landUse={landUse} rise={rise} />
-
-              <h2 className="section-title census-title">Roads in the flood area</h2>
-              <RoadCheck routes={routes} rise={rise} />
             </section>
           </div>
         </div>
