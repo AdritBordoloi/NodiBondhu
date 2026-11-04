@@ -56,6 +56,29 @@ const ALERT_PREVIEW_COUNT = 4
 const FLIGHT_DURATION_MS = 2400
 const FLOOD_FADE_MS = 900
 const FLOOD_OPACITY = 0.4
+// Scenarios overlap, so the land that floods first builds up to the strongest colour
+const HEAT_OPACITY = 0.65
+const HEAT_COLORS: ExpressionSpecification = [
+  'match',
+  ['get', 'rise_m'],
+  1,
+  '#d7191c',
+  2,
+  '#f46d43',
+  3,
+  '#fdae61',
+  4,
+  '#a6d96a',
+  5,
+  '#1a9850',
+  '#2b83ba',
+]
+type MapMode = 'default' | 'satellite' | 'heat'
+const MAP_MODES: { id: MapMode; label: string }[] = [
+  { id: 'default', label: 'Default' },
+  { id: 'satellite', label: 'Satellite' },
+  { id: 'heat', label: 'Heat map' },
+]
 const OBSERVED_OPACITY = 0.7
 
 const KINDS = ['observed', 'forecast', 'simulated'] as const
@@ -152,7 +175,12 @@ type LocationData = {
   modelCheck: ModelCheckResult
 }
 
-type ReportInfo = { generatedAt: string; mapImage: string | null; layersShown: string[] }
+type ReportInfo = {
+  generatedAt: string
+  mapImage: string | null
+  layersShown: string[]
+  mapMode: MapMode
+}
 
 const EMPTY_LAYERS: Layers = { observed: null, forecast: null, simulated: null }
 
@@ -529,7 +557,9 @@ function MapLegend({
   routes,
   observedFlood,
   hasGauge,
+  heat = false,
 }: {
+  heat?: boolean
   kinds: Kind[]
   rise: number
   focus: string
@@ -569,14 +599,21 @@ function MapLegend({
       symbol: <span className="legend-fill" style={{ background: KIND_INFO.simulated.color }} />,
       label: `Flood, +${rise} m`,
       detail: `Flood area at +${rise} m`,
-      show: showSimulated,
+      show: showSimulated && !heat,
+    },
+    {
+      key: 'heat',
+      symbol: <span className="legend-ramp" />,
+      label: 'Simulated flood-prone land: floods at +1 m (red) to +6 m (blue)',
+      detail: 'The lowest river rise that floods the land in the model. Higher rises are likely too large',
+      show: heat,
     },
     {
       key: 'radar',
       symbol: <span className="legend-fill" style={{ background: KIND_INFO.observed.color }} />,
       label: 'Flood seen by radar',
       detail: observedFlood ?? 'Flood seen by radar',
-      show: kinds.includes('observed') && Boolean(observedFlood),
+      show: kinds.includes('observed') && Boolean(observedFlood) && !heat,
     },
     {
       key: 'settlement',
@@ -991,6 +1028,7 @@ function SituationReport({
           />
           <MapLegend
             kinds={KINDS.filter((kind) => info.layersShown.includes(KIND_INFO[kind].label))}
+            heat={info.mapMode === 'heat'}
             rise={rise}
             focus={location.focus}
             villages={villages}
@@ -1003,8 +1041,9 @@ function SituationReport({
           />
           <figcaption className="note">
             Map view when this report was generated. Layers shown:{' '}
-            {info.layersShown.join(', ') || 'none'}. {BHUVAN_ATTRIBUTION}. Map data ©
-            OpenStreetMap contributors.
+            {info.layersShown.join(', ') || 'none'}.{' '}
+            {info.mapMode === 'satellite' && `${BHUVAN_ATTRIBUTION}. `}Map data © OpenStreetMap
+            contributors.
           </figcaption>
         </figure>
       ) : (
@@ -1109,6 +1148,7 @@ export default function App() {
   const cameraLocationRef = useRef<string | null>(null)
   const scrollToTargetRef = useRef(false)
   const [mapTarget, setMapTarget] = useState<string | null>(null)
+  const [mapMode, setMapMode] = useState<MapMode>('default')
   const [tab, setTab] = useState<TabId | 'report'>('scenario')
   const [reportInfo, setReportInfo] = useState<ReportInfo | null>(null)
   const [locations, setLocations] = useState<Location[]>([])
@@ -1178,12 +1218,14 @@ export default function App() {
             type: 'raster',
             source: 'satellite-wide',
             maxzoom: SATELLITE_DETAIL_MIN_ZOOM,
+            layout: { visibility: 'none' },
           },
           {
             id: 'satellite-detail',
             type: 'raster',
             source: 'satellite-detail',
             minzoom: SATELLITE_DETAIL_MIN_ZOOM,
+            layout: { visibility: 'none' },
           },
         ],
       },
@@ -1489,6 +1531,8 @@ export default function App() {
           id: layerId,
           type: 'fill',
           source: layerId,
+          // Draws the lowest rise last, so it sits on top in the heat map
+          layout: { 'fill-sort-key': ['-', 0, ['get', 'rise_m']] },
           paint: {
             'fill-color': KIND_INFO.simulated.color,
             'fill-opacity': 0,
@@ -1537,13 +1581,30 @@ export default function App() {
       map.setLayoutProperty(`${kind}-area`, 'visibility', visibility)
       map.setLayoutProperty(`${kind}-point`, 'visibility', visibility)
     }
+    const heat = mapMode === 'heat'
+    const satelliteVisibility = mapMode === 'satellite' ? 'visible' : 'none'
+    for (const layerId of ['satellite-wide', 'satellite-detail']) {
+      map.setLayoutProperty(layerId, 'visibility', satelliteVisibility)
+    }
+    // The street map already has place names, so only the satellite view needs these
+    for (const layerId of [PLACE_LABELS_MAJOR, PLACE_LABELS_MINOR]) {
+      if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', satelliteVisibility)
+    }
+    map.setPaintProperty('osm', 'raster-saturation', heat ? -1 : 0)
+    // Radar would cover the heat colours, and it is a different kind of evidence
+    if (heat) map.setLayoutProperty('observed-area', 'visibility', 'none')
     const simulatedVisibility = visible.simulated ? 'visible' : 'none'
     for (const { id } of locations) {
       const layerId = floodLayerId(id)
       if (!map.getLayer(layerId)) continue
-      map.setLayoutProperty(layerId, 'visibility', simulatedVisibility)
-      map.setFilter(layerId, ['all', POLYGON_FILTER, ['==', ['get', 'rise_m'], rise]])
-      map.setPaintProperty(layerId, 'fill-opacity', id === locationId ? FLOOD_OPACITY : 0)
+      map.setLayoutProperty(layerId, 'visibility', heat ? 'visible' : simulatedVisibility)
+      map.setFilter(
+        layerId,
+        heat ? POLYGON_FILTER : ['all', POLYGON_FILTER, ['==', ['get', 'rise_m'], rise]],
+      )
+      map.setPaintProperty(layerId, 'fill-color', heat ? HEAT_COLORS : KIND_INFO.simulated.color)
+      const opacity = heat ? HEAT_OPACITY : FLOOD_OPACITY
+      map.setPaintProperty(layerId, 'fill-opacity', id === locationId ? opacity : 0)
     }
     map.setLayoutProperty(SETTLEMENTS, 'visibility', simulatedVisibility)
     for (const layerId of [
@@ -1577,7 +1638,7 @@ export default function App() {
     ]
     map.setFilter(VILLAGES, drawnVillages)
     map.setFilter(VILLAGE_LABELS, drawnVillages)
-  }, [locations, locationId, visible, rise, mapReady, allData])
+  }, [locations, locationId, visible, rise, mapMode, mapReady, allData])
 
   useEffect(() => {
     const map = mapRef.current
@@ -1663,6 +1724,7 @@ export default function App() {
       generatedAt: new Date().toISOString(),
       mapImage,
       layersShown: KINDS.filter((kind) => visible[kind]).map((kind) => KIND_INFO[kind].label),
+      mapMode,
     })
     setTab('report')
   }
@@ -1873,9 +1935,25 @@ export default function App() {
             </section>
 
             <section className="panel map-panel">
-              <h2 className="section-title">Selected scenario</h2>
+              <div className="map-panel-head">
+                <h2 className="section-title">Selected scenario</h2>
+                <div className="segments map-mode" role="group" aria-label="Map view">
+                  {MAP_MODES.map(({ id, label }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      className="segment"
+                      aria-pressed={mapMode === id}
+                      onClick={() => setMapMode(id)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="map" ref={mapContainer} role="region" aria-label="Flood map" />
               <MapLegend
+                heat={mapMode === 'heat'}
                 kinds={KINDS.filter((kind) => visible[kind])}
                 rise={rise}
                 focus={focusName}

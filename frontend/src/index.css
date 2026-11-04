@@ -772,6 +772,37 @@ input:focus-visible {
   grid-column: 1 / -1;
 }
 
+.map-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
+
+.map-panel-head .section-title {
+  flex: 1 1 auto;
+  margin: 0;
+}
+
+.map-mode {
+  margin: 0;
+}
+
+.map-mode .segment {
+  min-height: 30px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.legend-ramp {
+  width: 36px;
+  height: 10px;
+  background: linear-gradient(90deg, #d7191c, #f46d43, #fdae61, #a6d96a, #1a9850, #2b83ba);
+  print-color-adjust: exact;
+}
+
 /* Soft sliding controls */
 .location-switch,
 .segments {
