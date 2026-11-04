@@ -423,13 +423,17 @@ function RouteMatrix({
     rises.find((level) => floodedKm(route, level) > 0) ?? Number.POSITIVE_INFINITY
   const isPartial = (route: Feature) =>
     Number(route.properties.mapped_km) < Number(route.properties.length_km)
-  const list = (routes?.features ?? [])
+  const ranked = (routes?.features ?? [])
     .filter((route) => route.properties.segment === 'route')
     .sort(
       (a, b) =>
         firstFlooded(b) - firstFlooded(a) ||
         Number(a.properties.length_km) - Number(b.properties.length_km),
     )
+  // Leaves out the last two routes that have flooded road at every rise
+  const neverClear = ranked.filter((route) => rises.every((level) => floodedKm(route, level) > 0))
+  const leftOut = neverClear.slice(-2)
+  const list = ranked.filter((route) => !leftOut.includes(route))
   if (list.length === 0) {
     return <p className="empty">Road routes are not available for this location yet.</p>
   }
