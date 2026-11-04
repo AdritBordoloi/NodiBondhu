@@ -1,0 +1,18 @@
+[
+  {
+    "id": "simaluguri",
+    "name": "Simaluguri",
+    "label": "Simaluguri, Sivasagar district, Assam",
+    "focus": "Simaluguri",
+    "coordinates": [94.7556049, 26.9202285],
+    "bbox": [94.65, 26.82, 94.86, 27.02]
+  },
+  {
+    "id": "sivasagar",
+    "name": "Sivasagar",
+    "label": "Sivasagar area, Assam",
+    "focus": "Sivasagar",
+    "coordinates": [94.6394226, 26.9834936],
+    "bbox": [94.4, 26.65, 95.0, 27.2]
+  }
+]

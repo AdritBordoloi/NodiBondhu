@@ -16,11 +16,13 @@ from rasterio.enums import Resampling
 from rasterio.features import rasterize, shapes
 from rasterio.merge import merge
 from rasterio.transform import rowcol
+from rasterio.windows import Window
+from rasterio.windows import transform as window_transform
 from scipy import ndimage
 from shapely.geometry import LineString, MultiPolygon, mapping, shape
 from shapely.ops import polygonize, unary_union
 
-from pilot_area import EAST, NORTH, SOUTH, WEST
+from pilot_area import EAST, NORTH, SOUTH, WEST, load_locations
 
 ROOT =Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "raw"
@@ -107,12 +109,34 @@ def main() -> None:
     # Settlements on river islands sit inside the mapped channel, so they flood first
     first_flooded[river] = RISES_M[0]
 
+    for location in load_locations():
+        write_location(location, masks, first_flooded, elements, transform, cell_km2, timestamp)
+
+
+def write_location(location, masks, first_flooded, elements, transform, cell_km2, timestamp) -> None:
+    """Cut one location out of the full grid and write its scenario and settlement files."""
+    west, south, east, north = location["bbox"]
+    col_start = round((west - transform.c) / transform.a)
+    col_end = round((east - transform.c) / transform.a)
+    row_start = round((north - transform.f) / transform.e)
+    row_end = round((south - transform.f) / transform.e)
+    window = Window(col_start, row_start, col_end - col_start, row_end - row_start)
+    location_transform = window_transform(window, transform)
+
+    simulated_dir = SIMULATED_DIR / location["id"]
+    reference_dir = REFERENCE_DIR / location["id"]
+    simulated_dir.mkdir(parents=True, exist_ok=True)
+    reference_dir.mkdir(parents=True, exist_ok=True)
+
+    lat_mid = math.radians((SOUTH + NORTH) / 2)
     settlements = []
     for element in elements:
         if element["type"] != "node":
             continue
+        if not (west <= element["lon"] <= east and south <= element["lat"] <= north):
+            continue
         row, col = rowcol(transform, element["lon"], element["lat"])
-        if not (0 <= row < dem.shape[0] and 0 <= col < dem.shape[1]):
+        if not (0 <= row < first_flooded.shape[0] and 0 <= col < first_flooded.shape[1]):
             continue
         value = first_flooded[row, col]
         settlements.append(
@@ -130,20 +154,25 @@ def main() -> None:
                 },
             }
         )
-    (REFERENCE_DIR / "settlements.geojson").write_text(
+    (reference_dir / "settlements.geojson").write_text(
         json.dumps({"type": "FeatureCollection", "features": settlements}), encoding="utf-8"
     )
 
-    for rise, flooded in masks.items():
+    for rise, full_mask in masks.items():
+        flooded = full_mask[row_start:row_end, col_start:col_end]
         polygons = [
             shape(geometry)
-            for geometry, value in shapes(flooded.astype("uint8"), mask=flooded, transform=transform)
+            for geometry, value in shapes(
+                flooded.astype("uint8"), mask=flooded, transform=location_transform
+            )
             if value == 1
         ]
         min_degrees2 = MIN_POLYGON_KM2 / (111.32**2 * math.cos(lat_mid))
         polygons = [polygon for polygon in polygons if polygon.area >= min_degrees2]
         merged = unary_union(polygons).simplify(SIMPLIFY_DEGREES).buffer(0)
-        if merged.geom_type == "Polygon":
+        if merged.is_empty:
+            merged = MultiPolygon()
+        elif merged.geom_type == "Polygon":
             merged = MultiPolygon([merged])
         affected = sum(
             1
@@ -156,7 +185,10 @@ def main() -> None:
             "geometry": mapping(merged),
             "properties": {
                 "kind": "simulated",
-                "name": f"Scenario: rivers {rise} m above the terrain data's water surface",
+                "name": (
+                    f"{location['name']} scenario: rivers {rise} m above the terrain data's "
+                    "water surface"
+                ),
                 "source": f"NodiBondhu HAND model using {DEM_SOURCE} and rivers from {RIVER_SOURCE}",
                 "timestamp": timestamp,
                 "quality": QUALITY,
@@ -165,12 +197,12 @@ def main() -> None:
                 "settlements_affected": affected,
             },
         }
-        path = SIMULATED_DIR / f"flood_plus_{rise}m.geojson"
+        path = simulated_dir / f"flood_plus_{rise}m.geojson"
         path.write_text(
             json.dumps({"type": "FeatureCollection", "features": [feature]}), encoding="utf-8"
         )
         print(
-            f"+{rise} m: {area} km2, {affected}/{len(settlements)} settlements, "
+            f"{location['id']} +{rise} m: {area} km2, {affected}/{len(settlements)} settlements, "
             f"{path.stat().st_size / 1e6:.2f} MB"
         )
 

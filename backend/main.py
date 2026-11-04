@@ -9,27 +9,38 @@ from pydantic import BaseModel
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 KINDS = ("observed", "forecast", "simulated")
-SETTLEMENTS_FILE = DATA_DIR / "reference" / "settlements.geojson"
+LOCATIONS = json.loads((DATA_DIR / "reference" / "locations.json").read_text(encoding="utf-8"))
+LOCATIONS_BY_ID = {location["id"]: location for location in LOCATIONS}
 ALERTS_FILE = DATA_DIR / "runtime" / "alerts.json"
 
 IST = timezone(timedelta(hours=5, minutes=30))
-SIMALUGURI = (26.92, 94.756)  # lat, lon from OpenStreetMap
-RAIN_FILE = DATA_DIR / "forecast" / "rain_simaluguri.geojson"
 RAIN_MAX_AGE = timedelta(minutes=30)
 RAIN_SOURCE = "Weather data by Open-Meteo.com"
 
 app = FastAPI(title="NodiBondhu API")
 
 
-def read_layer(kind: str) -> dict:
+def get_location(location_id: str) -> dict:
+    location = LOCATIONS_BY_ID.get(location_id)
+    if location is None:
+        raise HTTPException(status_code=404, detail=f"Unknown location: {location_id}")
+    return location
+
+
+def read_layer(kind: str, location_id: str) -> dict:
     features = []
-    for path in sorted((DATA_DIR / kind).glob("*.geojson")):
+    for path in sorted((DATA_DIR / kind / location_id).glob("*.geojson")):
         features += json.loads(path.read_text(encoding="utf-8"))["features"]
     return {"type": "FeatureCollection", "features": features}
 
 
-async def fetch_rain_forecast() -> dict:
-    lat, lon = SIMALUGURI
+def read_settlements(location_id: str) -> dict:
+    path = DATA_DIR / "reference" / location_id / "settlements.geojson"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+async def fetch_rain_forecast(location: dict) -> dict:
+    lon, lat = location["coordinates"]
     async with httpx.AsyncClient(timeout=15) as client:
         response = await client.get(
             "https://api.open-meteo.com/v1/forecast",
@@ -63,7 +74,7 @@ async def fetch_rain_forecast() -> dict:
                 "geometry": {"type": "Point", "coordinates": [lon, lat]},
                 "properties": {
                     "kind": "forecast",
-                    "name": "Rain forecast near Simaluguri",
+                    "name": f"Rain forecast near {location['focus']}",
                     "source": RAIN_SOURCE,
                     "timestamp": datetime.now(IST).isoformat(timespec="minutes"),
                     "quality": "Global model forecast, not checked against local gauges",
@@ -75,17 +86,19 @@ async def fetch_rain_forecast() -> dict:
     }
 
 
-async def refresh_rain_forecast() -> None:
+async def refresh_rain_forecast(location: dict) -> None:
     """Keep a saved copy so the demo still works if the service or internet fails."""
-    if RAIN_FILE.exists():
-        age = datetime.now(timezone.utc).timestamp() - RAIN_FILE.stat().st_mtime
+    rain_file = DATA_DIR / "forecast" / location["id"] / "rain.geojson"
+    if rain_file.exists():
+        age = datetime.now(timezone.utc).timestamp() - rain_file.stat().st_mtime
         if age < RAIN_MAX_AGE.total_seconds():
             return
     try:
-        layer = await fetch_rain_forecast()
+        layer = await fetch_rain_forecast(location)
     except (httpx.HTTPError, KeyError, ValueError):
         return
-    RAIN_FILE.write_text(json.dumps(layer, indent=2), encoding="utf-8")
+    rain_file.parent.mkdir(parents=True, exist_ok=True)
+    rain_file.write_text(json.dumps(layer, indent=2), encoding="utf-8")
 
 
 @app.get("/api/health")
@@ -93,21 +106,29 @@ def health() -> dict:
     return {"status": "ok"}
 
 
-@app.get("/api/layers/{kind}")
-async def get_layer(kind: str) -> dict:
+@app.get("/api/locations")
+def get_locations() -> list[dict]:
+    return LOCATIONS
+
+
+@app.get("/api/locations/{location_id}/layers/{kind}")
+async def get_layer(location_id: str, kind: str) -> dict:
+    location = get_location(location_id)
     if kind not in KINDS:
         raise HTTPException(status_code=404, detail=f"Unknown layer: {kind}")
     if kind == "forecast":
-        await refresh_rain_forecast()
-    return read_layer(kind)
+        await refresh_rain_forecast(location)
+    return read_layer(kind, location_id)
 
 
-@app.get("/api/settlements")
-def get_settlements() -> dict:
-    return json.loads(SETTLEMENTS_FILE.read_text(encoding="utf-8"))
+@app.get("/api/locations/{location_id}/settlements")
+def get_settlements(location_id: str) -> dict:
+    get_location(location_id)
+    return read_settlements(location_id)
 
 
 class AlertRequest(BaseModel):
+    location: str
     rise_m: int
 
 
@@ -125,9 +146,10 @@ def get_alerts() -> list[dict]:
 @app.post("/api/alerts")
 def create_alert(request: AlertRequest) -> dict:
     """Log an officer-approved demo alert. No message leaves the system."""
+    location = get_location(request.location)
     affected = sorted(
         feature["properties"]["name"]
-        for feature in get_settlements()["features"]
+        for feature in read_settlements(location["id"])["features"]
         if feature["properties"]["first_flooded_at_m"] is not None
         and feature["properties"]["first_flooded_at_m"] <= request.rise_m
     )
@@ -137,6 +159,8 @@ def create_alert(request: AlertRequest) -> dict:
     alert = {
         "id": len(alerts) + 1,
         "created_at": datetime.now(IST).isoformat(timespec="seconds"),
+        "location": location["id"],
+        "location_name": location["name"],
         "rise_m": request.rise_m,
         "settlements": affected,
         "kind": "simulated",
