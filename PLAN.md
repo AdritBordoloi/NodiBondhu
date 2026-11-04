@@ -1,24 +1,28 @@
 # NodiBondhu: Hackathon Plan
 
-## Status (updated 12:55 pm, 4 Nov)
+## Status (updated 1:20 pm, 4 Nov)
+
+Step-by-step instructions for each person are in `TEAM_STEPS.md`.
 
 | Item | State |
 |---|---|
+| Challenge | Confirmed: NESFIC-D-18 |
+| Pilot area | **Simaluguri, Sivasagar district, Assam**, on the Dikhow river |
 | Plan | On the `setup/plan-and-app` branch on GitHub, not yet on `main` |
-| App | Runs locally on Person 1's laptop, not yet pushed or deployed. Map, API and layer toggles work in dev. Production build shows the markers |
-| Observed layer | Dibrugarh CWC station is on the map, but the **reading is pending**. CWC showed no clickable reading for it on the hydrograph page. Person 3 to try the Table View |
+| App | On the `setup/plan-and-app` branch, not deployed. Map, three layers, flood slider, dashboard tiles and demo alert log all work in dev |
+| Observed layer | **Empty.** The nearest CWC gauge to Simaluguri is not identified yet. Person 3 to find it on the Dikhow, Disang or Brahmaputra |
 | Forecast layer | Live rain forecast from Open-Meteo, with a saved copy for the demo |
-| Simulated layer | Empty, waiting on Person 2's flood files. Format is in `data/README.md` |
-| Data and simulation | Waiting on Person 2: terrain download and HAND flood test |
+| Simulated layer | First HAND model for +1 to +6 m (1,348 to 2,118 km2). **Not checked against a real flood and probably too large.** It floods the Simaluguri point only from +6 m. It ignores embankments, and terrain errors matter on flat land |
+| Settlements | Only 70 places in OpenStreetMap for this area, so counts are too low. No population data |
+| Next priority | Person 2: real past flood extent, to check the model |
 | Proposal | Waiting on Person 3: 12-section document |
-| To confirm at kickoff | Challenge D-18, pilot area, past flood to replay |
+| Alerts | Demo log with officer approval. Nothing is sent to anyone |
 
 ## 1. The problem we are solving
 
-**Assumed challenge: NESFIC-D-18, "Digital Twin for Flood Management, Simulation and Early Warning Using Space Technology"** (Dept. of Science & Technology, Govt. of Assam, ASSAC).
+**Challenge: NESFIC-D-18, "Digital Twin for Flood Management, Simulation and Early Warning Using Space Technology"** (Dept. of Science & Technology, Govt. of Assam, ASSAC).
 Source: https://startup.assam.gov.in/nesfic26/problem-statements/nesfic-d-18
 
-> Confirm this is the challenge the team picked. Your resource list (MOSDAC, VEDAS, Bhuvan, ASDMA) fits it, but the file never names the challenge.
 
 Key facts from the challenge page:
 
@@ -67,12 +71,12 @@ Not on your list but worth using: Open-Meteo (free weather and rainfall API), Co
 
 ## 3. What we build (MVP)
 
-A web app, **NodiBondhu Flood Twin**, for one pilot area. Suggested pilot: **Brahmaputra at Dibrugarh**, to be confirmed at kickoff once CWC gauge data is checked.
+A web app, **NodiBondhu Flood Twin**, for one pilot area. Pilot: **Simaluguri, Sivasagar district, Assam**, covering the surrounding area of about 60 km by 60 km.
 
 Must have:
 1. **Live map** (MapLibre or Leaflet): river network, villages, districts, DEM-based terrain.
 2. **Three clearly labelled layers**: Observed (gauges and rainfall), Forecast (weather and river outlook), Simulated (inundation scenarios). Each shows a source, timestamp and uncertainty or quality badge.
-3. **Scenario slider**: "river rises X metres" or "Y mm rain in 24h" and the map shows the affected area. Use **HAND (Height Above Nearest Drainage)** from the DEM, with a plain bathtub model as the fallback. Pre-compute +1 to +4 m as GeoJSON files so the slider just switches files. Show villages and people affected.
+3. **Scenario slider**: "river rises X metres" or "Y mm rain in 24h" and the map shows the affected area. Use **HAND (Height Above Nearest Drainage)** from the DEM, with a plain bathtub model as the fallback. Pre-compute +1 to +6 m as GeoJSON files so the slider just switches files. Show villages and people affected.
 4. **Alerts**: threshold triggers push to a channel (Telegram or WhatsApp or SMS mock) with targeted village lists.
 5. **Dashboard**: current status, affected area, alert log.
 6. **Interoperability**: open APIs (GeoJSON/OGC WMS or WFS) and a short note on plugging into ASDMA workflows.
@@ -87,12 +91,12 @@ Stack: a responsive website using React, TypeScript and Vite with MapLibre, a sm
 
 | Time           | Person 1 (main laptop)                                                           | Person 2 (laptop, Gemini)                                                                    | Person 3 (tablet)                                                                              |
 | -------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 12:45 to 1:00  | **All: kickoff.** Confirm D-18, pilot area, past flood to replay                 | Same                                                                                         | Same                                                                                           |
-| 1:00 to 3:00   | App and API scaffold. First slice: one CWC reading shown on the map as Observed  | Terrain download, HAND flood test for Dibrugarh                                              | CWC levels in a shared sheet. Proposal document with 12 headings, sections 1 and 2. Wireframes |
-| **3:00**       | **Checkpoint: does the flood test work? If not, fall back to the bathtub model** |                                                                                              |                                                                                                |
-| 3:00 to 6:00   | Layer toggles, labels, scenario slider                                           | Scenario GeoJSON for +1 to +4 m, affected villages, past flood extent                        | Proposal sections 3, 5, 6, 8. Collect ASDMA reports for the past flood                         |
-| **6:00**       | **Checkpoint: slider works with real scenario files**                            |                                                                                              |                                                                                                |
-| 6:00 to 8:00   | Forecast layer, alerts, dashboard, uncertainty badges                            | Rain and discharge files, compare simulated area with past flood, notes for sections 4, 7, 9 | Proposal sections 10, 11, 12. Fit in Person 2's notes                                          |
+| 12:45 to 1:00  | **All: kickoff.** Agree the past flood to check | Same                                                                                         | Same                                                                                           |
+| 1:00 to 3:00 | Done early: app, API, flood slider, dashboard, demo alerts. Next: add real data as it arrives | Register for Earth Engine, map the past flood from satellite | CWC levels in a shared sheet, flood reports, proposal sections 1 and 2 |
+| **3:00** | **Checkpoint: do we have a past flood extent and one real CWC reading?** | | |
+| 3:00 to 6:00 | Add the past flood, compare it with the model, improve the model | Better village data, embankment locations | Proposal sections 3, 5, 6, 8 |
+| **6:00** | **Checkpoint: model compared with a real flood, result recorded** | | |
+| 6:00 to 8:00 | Polish, offline fallback, first deployment test | Notes for sections 7 and 9 | Proposal sections 4, 7, 9, 10, 11, 12 |
 | **8:00**       | **Checkpoint: core demo works end to end**                                       |                                                                                              |                                                                                                |
 | 8:00 to 9:15   | Bug fixes and polish                                                             | Test the app, cache all data for offline demo                                                | Test on the tablet, write the demo script                                                      |
 | 9:15 to 9:45   | **All: dinner and feature freeze**                                               | Same                                                                                         | Same                                                                                           |
@@ -106,7 +110,7 @@ Stack: a responsive website using React, TypeScript and Vite with MapLibre, a sm
 | Person | Owns | Hands over |
 |---|---|---|
 | Person 1: main laptop, Claude | App, backend, integration, deployment, submission | Public link, repo, final submission |
-| Person 2: laptop, Gemini Pro | Data and flood simulation | GeoJSON and CSV files with a source and date, in `data/` or a shared Drive folder |
+| Person 2: laptop, Gemini Pro | Evidence: past flood extent, village data, embankments, model checks | GeoJSON and CSV files with a source and date, in a shared Drive folder |
 | Person 3: tablet | Proposal, manual data collection, wireframes, demo script and narration | Proposal PDF, shared sheet of CWC levels, wireframes, script |
 
 Rules:

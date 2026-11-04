@@ -19,3 +19,9 @@ Thumbs.db
 
 # Claude Code local files
 .claude/
+
+# Large source data, re-downloaded by scripts/
+data/raw/
+
+# Alert log created while the app runs
+data/runtime/
