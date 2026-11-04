@@ -18,6 +18,13 @@ setWorkerUrl(workerUrl)
 
 // Only shown for a moment, until the locations have loaded
 const INITIAL_CENTER: [number, number] = [94.7, 26.93]
+const BHUVAN_ATTRIBUTION = 'Imagery: Bhuvan, NRSC/ISRO'
+const INDIA_BOUNDS: [number, number, number, number] = [68, 6, 98, 38]
+// Only some Bhuvan layers match the web map's projection. bhuvan_marc is the clearest
+// when zoomed out but stops at zoom 11, and bhuvan_wbase_v3 is sharp from zoom 12
+const SATELLITE_WIDE_MAX_ZOOM = 11
+const SATELLITE_DETAIL_MIN_ZOOM = 12
+const SATELLITE_DETAIL_MAX_ZOOM = 15
 const PILOT_AREA = 'pilot-area'
 const SETTLEMENTS = 'settlements'
 const ALERT_PREVIEW_COUNT = 8
@@ -78,6 +85,14 @@ type LocationData = { layers: Layers; settlements: Layer }
 type ReportInfo = { generatedAt: string; mapImage: string | null; layersShown: string[] }
 
 const EMPTY_LAYERS: Layers = { observed: null, forecast: null, simulated: null }
+
+function bhuvanTiles(layer: string) {
+  return (
+    'https://bhuvan-ras1.nrsc.gov.in/tilecache/tilecache.py?service=WMS&version=1.1.1' +
+    `&request=GetMap&layers=${layer}&styles=&srs=EPSG:3857&bbox={bbox-epsg-3857}` +
+    '&width=256&height=256&format=image/jpeg'
+  )
+}
 
 function floodLayerId(locationId: string) {
   return `flood-${locationId}`
@@ -398,7 +413,8 @@ function SituationReport({
           />
           <figcaption className="note">
             Map view when this report was generated. Layers shown:{' '}
-            {info.layersShown.join(', ') || 'none'}. Base map © OpenStreetMap contributors.
+            {info.layersShown.join(', ') || 'none'}. {BHUVAN_ATTRIBUTION}. Map data ©
+            OpenStreetMap contributors.
           </figcaption>
         </figure>
       ) : (
@@ -528,8 +544,39 @@ export default function App() {
             tileSize: 256,
             attribution: '© OpenStreetMap contributors',
           },
+          'satellite-wide': {
+            type: 'raster',
+            tiles: [bhuvanTiles('bhuvan_marc')],
+            tileSize: 256,
+            maxzoom: SATELLITE_WIDE_MAX_ZOOM,
+            bounds: INDIA_BOUNDS,
+            attribution: BHUVAN_ATTRIBUTION,
+          },
+          'satellite-detail': {
+            type: 'raster',
+            tiles: [bhuvanTiles('bhuvan_wbase_v3')],
+            tileSize: 256,
+            minzoom: SATELLITE_DETAIL_MIN_ZOOM,
+            maxzoom: SATELLITE_DETAIL_MAX_ZOOM,
+            bounds: INDIA_BOUNDS,
+          },
         },
-        layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+        // OpenStreetMap stays underneath, so the map still shows if Bhuvan is slow or down
+        layers: [
+          { id: 'osm', type: 'raster', source: 'osm' },
+          {
+            id: 'satellite-wide',
+            type: 'raster',
+            source: 'satellite-wide',
+            maxzoom: SATELLITE_DETAIL_MIN_ZOOM,
+          },
+          {
+            id: 'satellite-detail',
+            type: 'raster',
+            source: 'satellite-detail',
+            minzoom: SATELLITE_DETAIL_MIN_ZOOM,
+          },
+        ],
       },
     })
     map.addControl(new NavigationControl(), 'top-right')
@@ -553,7 +600,7 @@ export default function App() {
         id: PILOT_AREA,
         type: 'line',
         source: PILOT_AREA,
-        paint: { 'line-color': '#b45309', 'line-width': 2, 'line-dasharray': [3, 2] },
+        paint: { 'line-color': '#ffd54a', 'line-width': 2, 'line-dasharray': [3, 2] },
       })
       map.addSource(SETTLEMENTS, { type: 'geojson', data: empty })
       map.addLayer({
