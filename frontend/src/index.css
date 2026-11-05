@@ -655,6 +655,13 @@ tr.selected td {
   line-height: 1.5;
 }
 
+.ai-summary {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-left: 3px solid #1a73e8;
+  background: #f4f6fa;
+}
+
 .report-map {
   margin: 0;
 }

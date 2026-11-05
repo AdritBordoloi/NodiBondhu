@@ -7,10 +7,12 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, Response
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
+
+from ai_summary import write_summary
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 KINDS = ("observed", "forecast", "simulated")
@@ -342,6 +344,108 @@ def get_flood_reports(location_id: str) -> dict:
         "gauge": settings["gauge"],
         "days": days,
     }
+
+
+def read_feature(path: Path) -> dict | None:
+    """Properties of the first feature in a file, or None if there is no such file."""
+    if not path.exists():
+        return None
+    features = json.loads(path.read_text(encoding="utf-8"))["features"]
+    return features[0]["properties"] if features else None
+
+
+def long_date(value: str) -> str:
+    day = datetime.fromisoformat(value[:10])
+    return f"{day.day} {day:%B %Y}"
+
+
+def summary_facts(location: dict, rise: int) -> list[str]:
+    """The report's main figures as labelled lines, the only things the model may use."""
+    location_id = location["id"]
+    scenario = read_feature(DATA_DIR / "simulated" / location_id / f"flood_plus_{rise}m.geojson")
+    if scenario is None:
+        raise HTTPException(status_code=404, detail=f"No scenario for +{rise} m")
+    facts = [
+        f"Simulated: a +{rise} m river rise in the {location['name']} map area would flood about "
+        f"{scenario['flooded_area_km2']} km2 of land."
+    ]
+
+    places = [place["properties"] for place in read_settlements(location_id)["features"]]
+    reached = [p for p in places if p.get("first_flooded_at_m") is not None and p["first_flooded_at_m"] <= rise]
+    facts.append(f"Simulated: it would reach {len(reached)} of {len(places)} mapped settlements.")
+    focus = next((p for p in places if p.get("name") == location["focus"]), None)
+    if focus:
+        status = "would flood" if focus in reached else "would not flood"
+        facts.append(f"Simulated: {location['focus']} {status} in this scenario.")
+
+    villages = [village["properties"] for village in get_villages(location_id)["features"]]
+    hit = [v for v in villages if isinstance(v.get("first_flooded_at_m"), (int, float)) and v["first_flooded_at_m"] <= rise]
+    counted = [v for v in hit if v.get("population_2001") is not None]
+    if villages:
+        facts.append(
+            f"Simulated: {len(hit)} of {len(villages)} census villages would have flooded land. {len(counted)} of them "
+            f"have a census figure, with a whole population of {sum(v['population_2001'] for v in counted)} in 2001."
+        )
+
+    km = f"flooded_km_{rise}"
+    routes = [r["properties"] for r in get_routes(location_id)["features"] if r["properties"].get("segment") == "route"]
+    cut = sorted((r for r in routes if (r.get(km) or 0) > 0), key=lambda r: -r[km])
+    if routes:
+        worst = ", ".join(f"{r['name']} (about {r[km]} km)" for r in cut[:3])
+        facts.append(
+            f"Simulated: {len(cut)} of {len(routes)} main routes would pass through the flood area"
+            + (f". Most affected: {worst}." if worst else ".")
+        )
+
+    land = next((s for s in get_land_use(location_id).get("scenarios", []) if s["rise_m"] == rise), None)
+    if land:
+        kinds = ", ".join(f"{k['name']} about {round(k['flooded_km2'])} km2" for k in land["land_types"][:3])
+        facts.append(f"Simulated estimate of flooded land: {kinds}.")
+
+    check = get_model_check(location_id)
+    score = next((s for s in check.get("scenarios", []) if s["rise_m"] == rise), None)
+    if score:
+        facts.append(
+            f"Observed check: this scenario overlaps {round(score['overlap_score'] * 100)}% with flood seen by "
+            f"radar on {check['image_date']}, so the model only partly matches a real flood."
+        )
+
+    gauge = read_feature(DATA_DIR / "observed" / location_id / "river_levels.geojson")
+    if gauge and gauge.get("level_m") is not None:
+        limit = next(
+            (f", {label} level {gauge[key]} m" for key, label in (("danger_level_m", "danger"), ("warning_level_m", "warning")) if gauge.get(key) is not None),
+            "",
+        )
+        facts.append(f"Observed past reading, not live: {gauge['name']} was {gauge['level_m']} m on {long_date(gauge['timestamp'])}{limit}.")
+
+    reports = get_flood_reports(location_id)
+    days = [day for day in reports.get("days", []) if day["people"] is not None]
+    if days:
+        peak = max(days, key=lambda day: day["people"])
+        facts.append(
+            f"Observed official report for {reports['area']}, the whole area and not the map area: the most people "
+            f"affected were {peak['people']} in {peak['villages']} villages on {long_date(peak['date'])}."
+        )
+    elif reports:
+        facts.append(f"Observed: the official reports used do not list {reports['area']} as affected.")
+
+    rain = read_feature(DATA_DIR / "forecast" / location_id / "rain.geojson")
+    if rain and rain.get("rain_next_24h_mm") is not None:
+        facts.append(f"Forecast: {rain['rain_next_24h_mm']} mm of rain in the next 24 hours and {rain['rain_next_72h_mm']} mm in the next 72 hours.")
+    flow = read_feature(DATA_DIR / "forecast" / location_id / "river_flow.geojson")
+    if flow and flow.get("flow_peak_next_7d_m3s") is not None:
+        facts.append(
+            f"Forecast: river flow peaks at {flow['flow_peak_next_7d_m3s']} m3/s in the next 7 days, "
+            f"against a 2026 monsoon peak of {flow['monsoon_peak_2026_m3s']} m3/s."
+        )
+    return facts
+
+
+@app.get("/api/locations/{location_id}/summary")
+async def get_summary(location_id: str, rise: int = Query(ge=1, le=6)) -> dict:
+    """A short written summary from a local model, or a message saying why there is none."""
+    facts = await run_in_threadpool(summary_facts, get_location(location_id), rise)
+    return await write_summary(facts)
 
 
 class AlertRequest(BaseModel):
