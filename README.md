@@ -105,38 +105,35 @@ Village populations come from the 2001 census and count everyone in a village wi
 
 ```mermaid
 flowchart LR
-  subgraph Space["🛰️ Space and open data"]
-    DEM["Copernicus DEM 30 m"]
-    S1["Sentinel-1 radar"]
-    BH["ISRO Bhuvan"]
-    OSM["OpenStreetMap"]
-    OM["Open-Meteo + GloFAS"]
-    AS["ASDMA reports"]
+  subgraph sources [Space and open data]
+    dem[Copernicus DEM 30 m]
+    radar[Sentinel-1 radar]
+    bhuvan[ISRO Bhuvan]
+    osm[OpenStreetMap]
+    meteo[Open-Meteo and GloFAS]
+    asdma[ASDMA reports]
   end
-
-  subgraph Build["⚙️ Build scripts"]
-    HAND["Terrain flood model<br/>(height above river)"]
-    RADAR["Radar flood map<br/>and model score"]
-    REF["Villages, land use,<br/>roads"]
+  subgraph pipeline [Build scripts]
+    terrain[Terrain flood model]
+    radarmap[Radar flood map and score]
+    exposure[Villages, land use, roads]
   end
-
-  subgraph API["🐍 FastAPI backend"]
-    LAYERS["GeoJSON layers"]
-    FC["Forecast refresh"]
-    FACTS["Report facts"]
-    AI["Local AI summary"]
+  subgraph backend [FastAPI backend]
+    layers[GeoJSON layers]
+    refresh[Forecast refresh]
+    facts[Report facts]
+    summary[Local AI summary]
   end
-
-  UI["🗺️ React + MapLibre<br/>digital twin"]
-
-  DEM --> HAND --> LAYERS
-  S1 --> RADAR --> LAYERS
-  BH --> REF --> LAYERS
-  OSM --> REF
-  OM --> FC --> LAYERS
-  AS --> LAYERS
-  LAYERS --> UI
-  FACTS --> AI --> UI
+  app[React and MapLibre digital twin]
+  dem --> terrain --> layers
+  radar --> radarmap --> layers
+  bhuvan --> exposure
+  osm --> exposure
+  exposure --> layers
+  meteo --> refresh --> layers
+  asdma --> layers
+  layers --> app
+  layers --> facts --> summary --> app
 ```
 
 1. **Terrain model.** The Copernicus 30 m elevation model is resampled to a 90 m grid. For every cell, NodiBondhu works out how high it sits above its nearest river channel (HAND, *Height Above Nearest Drainage*). A cell floods in a scenario when the river rise reaches that height.
